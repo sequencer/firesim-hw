@@ -343,6 +343,11 @@ object chipyard extends CommonModule with SbtModule { cy =>
     override def millSourcePath = basePath / "generators" / "utilities"
     override def moduleDeps = super.moduleDeps ++ Seq(chipyard)
   }
+
+  object firechip extends CommonModule with SbtModule {
+    override def millSourcePath = basePath / "generators" / "firechip"
+    override def moduleDeps = super.moduleDeps ++ Seq(chipyard)
+  }
 }
 
 // Dummy
