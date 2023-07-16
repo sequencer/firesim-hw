@@ -68,6 +68,10 @@ in pkgs.callPackage (
       python
       cc
       circt
+      gcc
+      libdwarf_20210528
+      libelf
+      gmp
     ];
   }
 ) {}
