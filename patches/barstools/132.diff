@@ -1,0 +1,300 @@
+diff --git a/build.sbt b/build.sbt
+index 8a1a8b60..9ce7d00c 100644
+--- a/build.sbt
++++ b/build.sbt
+@@ -1,9 +1,6 @@
+ // See LICENSE for license details.
+ 
+-val defaultVersions = Map(
+-  "chisel3" -> "3.5.5",
+-  "chisel-iotesters" -> "2.5.5"
+-)
++val defaultVersions = Map("chisel3" -> "3.6.0")
+ 
+ organization := "edu.berkeley.cs"
+ version := "0.4-SNAPSHOT"
+@@ -13,7 +10,7 @@ scalacOptions := Seq("-deprecation", "-feature", "-language:reflectiveCalls")
+ Test / scalacOptions ++= Seq("-language:reflectiveCalls")
+ fork := true
+ mainClass := Some("barstools.macros.MacroCompiler")
+-libraryDependencies ++= Seq("chisel3","chisel-iotesters").map {
++libraryDependencies ++= Seq("chisel3").map {
+   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep))
+ }
+ libraryDependencies ++= Seq(
+diff --git a/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala b/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
+index b90e43ac..457fa12b 100644
+--- a/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
++++ b/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
+@@ -153,7 +153,7 @@ object IOCell {
+     * @param name An optional name or name prefix to use for naming IO cells
+     * @return A Seq of all generated IO cell instances
+     */
+-  val toSyncReset:  (Reset) => Bool = _.asBool()
++  val toSyncReset:  (Reset) => Bool = _.asBool
+   val toAsyncReset: (Reset) => AsyncReset = _.asAsyncReset
+   def generateFromSignal[T <: Data, R <: Reset](
+     coreSignal:        T,
+diff --git a/src/main/scala/barstools/tapeout/transforms/utils/ProgrammaticBundle.scala b/src/main/scala/barstools/tapeout/transforms/utils/ProgrammaticBundle.scala
+index 66200e61..ef98b294 100644
+--- a/src/main/scala/barstools/tapeout/transforms/utils/ProgrammaticBundle.scala
++++ b/src/main/scala/barstools/tapeout/transforms/utils/ProgrammaticBundle.scala
+@@ -8,7 +8,6 @@ class CustomBundle[T <: Data](elts: (String, T)*) extends Record {
+   val elements = ListMap(elts.map { case (field, elt) => field -> chiselTypeOf(elt) }: _*)
+   def apply(elt: String): T = elements(elt)
+   def apply(elt: Int):    T = elements(elt.toString)
+-  override def cloneType = (new CustomBundle(elements.toList: _*)).asInstanceOf[this.type]
+ }
+ 
+ class CustomIndexedBundle[T <: Data](elts: (Int, T)*) extends Record {
+@@ -17,7 +16,6 @@ class CustomIndexedBundle[T <: Data](elts: (Int, T)*) extends Record {
+   // TODO: Make an equivalent to the below work publicly (or only on subclasses?)
+   def indexedElements = ListMap(elts.map { case (field, elt) => field -> chiselTypeOf(elt) }: _*)
+   def apply(elt: Int): T = elements(elt.toString)
+-  override def cloneType = (new CustomIndexedBundle(indexedElements.toList: _*)).asInstanceOf[this.type]
+ }
+ 
+ object CustomIndexedBundle {
+diff --git a/src/test/scala/barstools/macros/Functional.scala b/src/test/scala/barstools/macros/Functional.scala
+index 9366f6f9..ddc33477 100644
+--- a/src/test/scala/barstools/macros/Functional.scala
++++ b/src/test/scala/barstools/macros/Functional.scala
+@@ -1,120 +1,120 @@
+ package barstools.macros
+ 
+-import firrtl.ir.Circuit
+-import firrtl_interpreter.InterpretiveTester
+-
+-// Functional tests on memory compiler outputs.
+-
+-// Synchronous write and read back.
+-class SynchronousReadAndWrite extends MacroCompilerSpec with HasSRAMGenerator with HasSimpleDepthTestGenerator {
+-  override lazy val width = 12
+-  override lazy val memDepth = BigInt(2048)
+-  override lazy val libDepth = BigInt(1024)
+-
+-  compile(mem, lib, v, synflops = true)
+-  val result: Circuit = execute(mem, lib, synflops = true)
+-
+-  it should "run with InterpretedTester" in {
+-    pending // Enable this when https://github.com/freechipsproject/firrtl-interpreter/pull/88 is snapshot-published
+-
+-    val addr1 = 0
+-    val addr1val = 0xff
+-    val addr2 = 42
+-    val addr2val = 0xf0
+-    val addr3 = 1 << 10
+-    val addr3val = 1 << 10
+-
+-    val tester = new InterpretiveTester(result.serialize)
+-    //~ tester.setVerbose()
+-
+-    tester.poke("outer_write_en", 0)
+-    tester.step()
+-
+-    // Write addresses and read them.
+-    tester.poke("outer_addr", addr1)
+-    tester.poke("outer_din", addr1val)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_write_en", 0)
+-    tester.step()
+-    tester.poke("outer_addr", addr2)
+-    tester.poke("outer_din", addr2val)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_write_en", 0)
+-    tester.step()
+-    tester.poke("outer_addr", addr3)
+-    tester.poke("outer_din", addr3val)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_write_en", 0)
+-    tester.step()
+-
+-    tester.poke("outer_addr", addr1)
+-    tester.step()
+-    tester.expect("outer_dout", addr1val)
+-
+-    tester.poke("outer_addr", addr2)
+-    tester.step()
+-    tester.expect("outer_dout", addr2val)
+-
+-    tester.poke("outer_addr", addr3)
+-    tester.step()
+-    tester.expect("outer_dout", addr3val)
+-  }
+-}
+-
+-// Test to verify that the circuit doesn't read combinationally based on addr
+-// between two submemories.
+-class DontReadCombinationally extends MacroCompilerSpec with HasSRAMGenerator with HasSimpleDepthTestGenerator {
+-  override lazy val width = 8
+-  override lazy val memDepth = BigInt(2048)
+-  override lazy val libDepth = BigInt(1024)
+-
+-  compile(mem, lib, v, synflops = true)
+-  val result: Circuit = execute(mem, lib, synflops = true)
+-
+-  it should "run with InterpretedTester" in {
+-    pending // Enable this when https://github.com/freechipsproject/firrtl-interpreter/pull/88 is snapshot-published
+-
+-    val addr1 = 0
+-    val addr1a = 1
+-    val addr2 = 1 << 10
+-
+-    val tester = new InterpretiveTester(result.serialize)
+-    //~ tester.setVerbose()
+-
+-    tester.poke("outer_write_en", 0)
+-    tester.step()
+-
+-    // Write two addresses, one in the lower submemory and the other in the
+-    // higher submemory.
+-    tester.poke("outer_addr", addr1)
+-    tester.poke("outer_din", 0x11)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_addr", addr1a)
+-    tester.poke("outer_din", 0x1a)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_addr", addr2)
+-    tester.poke("outer_din", 0xaa)
+-    tester.poke("outer_write_en", 1)
+-    tester.step()
+-    tester.poke("outer_write_en", 0)
+-    tester.poke("outer_addr", addr1)
+-    tester.step()
+-
+-    // Test that there is no combinational read.
+-    tester.poke("outer_addr", addr1)
+-    tester.expect("outer_dout", 0x11)
+-    tester.poke("outer_addr", addr1a)
+-    tester.expect("outer_dout", 0x11)
+-    tester.poke("outer_addr", addr2)
+-    tester.expect("outer_dout", 0x11)
+-
+-    // And upon step it should work again.
+-    tester.step()
+-    tester.expect("outer_addr", 0xaa)
+-  }
+-}
++// import firrtl.ir.Circuit
++// import firrtl_interpreter.InterpretiveTester
++
++// // Functional tests on memory compiler outputs.
++
++// // Synchronous write and read back.
++// class SynchronousReadAndWrite extends MacroCompilerSpec with HasSRAMGenerator with HasSimpleDepthTestGenerator {
++//   override lazy val width = 12
++//   override lazy val memDepth = BigInt(2048)
++//   override lazy val libDepth = BigInt(1024)
++
++//   compile(mem, lib, v, synflops = true)
++//   val result: Circuit = execute(mem, lib, synflops = true)
++
++//   it should "run with InterpretedTester" in {
++//     pending // Enable this when https://github.com/freechipsproject/firrtl-interpreter/pull/88 is snapshot-published
++
++//     val addr1 = 0
++//     val addr1val = 0xff
++//     val addr2 = 42
++//     val addr2val = 0xf0
++//     val addr3 = 1 << 10
++//     val addr3val = 1 << 10
++
++//     val tester = new InterpretiveTester(result.serialize)
++//     //~ tester.setVerbose()
++
++//     tester.poke("outer_write_en", 0)
++//     tester.step()
++
++//     // Write addresses and read them.
++//     tester.poke("outer_addr", addr1)
++//     tester.poke("outer_din", addr1val)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_write_en", 0)
++//     tester.step()
++//     tester.poke("outer_addr", addr2)
++//     tester.poke("outer_din", addr2val)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_write_en", 0)
++//     tester.step()
++//     tester.poke("outer_addr", addr3)
++//     tester.poke("outer_din", addr3val)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_write_en", 0)
++//     tester.step()
++
++//     tester.poke("outer_addr", addr1)
++//     tester.step()
++//     tester.expect("outer_dout", addr1val)
++
++//     tester.poke("outer_addr", addr2)
++//     tester.step()
++//     tester.expect("outer_dout", addr2val)
++
++//     tester.poke("outer_addr", addr3)
++//     tester.step()
++//     tester.expect("outer_dout", addr3val)
++//   }
++// }
++
++// // Test to verify that the circuit doesn't read combinationally based on addr
++// // between two submemories.
++// class DontReadCombinationally extends MacroCompilerSpec with HasSRAMGenerator with HasSimpleDepthTestGenerator {
++//   override lazy val width = 8
++//   override lazy val memDepth = BigInt(2048)
++//   override lazy val libDepth = BigInt(1024)
++
++//   compile(mem, lib, v, synflops = true)
++//   val result: Circuit = execute(mem, lib, synflops = true)
++
++//   it should "run with InterpretedTester" in {
++//     pending // Enable this when https://github.com/freechipsproject/firrtl-interpreter/pull/88 is snapshot-published
++
++//     val addr1 = 0
++//     val addr1a = 1
++//     val addr2 = 1 << 10
++
++//     val tester = new InterpretiveTester(result.serialize)
++//     //~ tester.setVerbose()
++
++//     tester.poke("outer_write_en", 0)
++//     tester.step()
++
++//     // Write two addresses, one in the lower submemory and the other in the
++//     // higher submemory.
++//     tester.poke("outer_addr", addr1)
++//     tester.poke("outer_din", 0x11)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_addr", addr1a)
++//     tester.poke("outer_din", 0x1a)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_addr", addr2)
++//     tester.poke("outer_din", 0xaa)
++//     tester.poke("outer_write_en", 1)
++//     tester.step()
++//     tester.poke("outer_write_en", 0)
++//     tester.poke("outer_addr", addr1)
++//     tester.step()
++
++//     // Test that there is no combinational read.
++//     tester.poke("outer_addr", addr1)
++//     tester.expect("outer_dout", 0x11)
++//     tester.poke("outer_addr", addr1a)
++//     tester.expect("outer_dout", 0x11)
++//     tester.poke("outer_addr", addr2)
++//     tester.expect("outer_dout", 0x11)
++
++//     // And upon step it should work again.
++//     tester.step()
++//     tester.expect("outer_addr", 0xaa)
++//   }
++// }

@@ -1,0 +1,161 @@
+diff --git a/sim/build.sbt b/sim/build.sbt
+index 04af2347f..23aa57aa0 100644
+--- a/sim/build.sbt
++++ b/sim/build.sbt
+@@ -1,6 +1,6 @@
+ import Tests._
+ 
+-val chiselVersion = "3.5.6"
++val chiselVersion = "3.6.0"
+ 
+ // keep chisel/firrtl specific class files, rename other conflicts
+ val chiselFirrtlMergeStrategy = CustomMergeStrategy.rename { dep =>
+diff --git a/sim/midas/src/main/scala/midas/core/SimUtils.scala b/sim/midas/src/main/scala/midas/core/SimUtils.scala
+index 353198545..eed1907f7 100644
+--- a/sim/midas/src/main/scala/midas/core/SimUtils.scala
++++ b/sim/midas/src/main/scala/midas/core/SimUtils.scala
+@@ -99,7 +99,6 @@ object SimUtils {
+   // Simple wrapper for nested bundles.
+   private class BundleRecord(elms: Seq[(String, Data)]) extends Record {
+     override val elements = ListMap((elms.map { case (name, data) => name -> data.cloneType }):_*)
+-    override def cloneType: this.type = new BundleRecord(elms).asInstanceOf[this.type]
+     override def toString: String = s"{${elements.map({case (name, data) => s"${name}: ${data}"}).mkString(", ")}}"
+   }
+ 
+diff --git a/sim/midas/src/main/scala/midas/core/SimWrapper.scala b/sim/midas/src/main/scala/midas/core/SimWrapper.scala
+index 7c1031488..1c1d7e30a 100644
+--- a/sim/midas/src/main/scala/midas/core/SimWrapper.scala
++++ b/sim/midas/src/main/scala/midas/core/SimWrapper.scala
+@@ -192,7 +192,6 @@ abstract class ChannelizedWrapperIO(val config: SimWrapperConfig)
+ 
+ class ClockRecord(numClocks: Int) extends Record {
+   override val elements = ListMap(Seq.tabulate(numClocks)(i => s"_$i" -> Clock()):_*)
+-  override def cloneType = new ClockRecord(numClocks).asInstanceOf[this.type]
+ }
+ 
+ class TargetBoxIO(config: SimWrapperConfig) extends ChannelizedWrapperIO(config) {
+@@ -212,7 +211,6 @@ class TargetBoxIO(config: SimWrapperConfig) extends ChannelizedWrapperIO(config)
+   override val elements = ListMap((Seq(clockElement) ++ wireElements ++ rvElements):_*) ++
+     // Untokenized ports
+     ListMap("hostClock" -> hostClock, "hostReset" -> hostReset)
+-  override def cloneType: this.type = new TargetBoxIO(config).asInstanceOf[this.type]
+ }
+ 
+ class TargetBox(config: SimWrapperConfig) extends BlackBox {
+@@ -229,7 +227,6 @@ class SimWrapperChannels(config: SimWrapperConfig) extends ChannelizedWrapperIO(
+   }).get
+ 
+   override val elements = ListMap((Seq(clockElement) ++ wireElements ++ rvElements):_*)
+-  override def cloneType: this.type = new SimWrapperChannels(config).asInstanceOf[this.type]
+ }
+ 
+ /**
+diff --git a/sim/midas/src/main/scala/midas/widgets/AssertBridge.scala b/sim/midas/src/main/scala/midas/widgets/AssertBridge.scala
+index a14a9c9dd..d1f031451 100644
+--- a/sim/midas/src/main/scala/midas/widgets/AssertBridge.scala
++++ b/sim/midas/src/main/scala/midas/widgets/AssertBridge.scala
+@@ -14,7 +14,6 @@ class AssertBridgeRecord(assertPortName: String, resetPortName: String, numAsser
+   val asserts = Output(UInt(numAsserts.W))
+   val underGlobalReset = Output(Bool())
+   val elements = ListMap(assertPortName -> asserts, resetPortName -> underGlobalReset)
+-  override def cloneType = new AssertBridgeRecord(assertPortName, resetPortName, numAsserts).asInstanceOf[this.type]
+ }
+ 
+ case class AssertBridgeParameters(assertPortName: String, resetPortName: String, assertMessages: Seq[String])
+diff --git a/sim/midas/src/main/scala/midas/widgets/AutoCounterBridge.scala b/sim/midas/src/main/scala/midas/widgets/AutoCounterBridge.scala
+index 3811af5bc..950bbc0a4 100644
+--- a/sim/midas/src/main/scala/midas/widgets/AutoCounterBridge.scala
++++ b/sim/midas/src/main/scala/midas/widgets/AutoCounterBridge.scala
+@@ -56,7 +56,6 @@ class AutoCounterBundle(
+     (triggerName, triggerEnable) +:
+     (resetPortName, underGlobalReset) +:
+     events):_*)
+-  override def cloneType = new AutoCounterBundle(eventMetadata, triggerName, resetPortName).asInstanceOf[this.type]
+ }
+ 
+ case class AutoCounterParameters(eventMetadata: Seq[EventMetadata], triggerName: String, resetPortName: String)
+diff --git a/sim/midas/src/main/scala/midas/widgets/HostPort.scala b/sim/midas/src/main/scala/midas/widgets/HostPort.scala
+index b8703a9cd..0970dcbc0 100644
+--- a/sim/midas/src/main/scala/midas/widgets/HostPort.scala
++++ b/sim/midas/src/main/scala/midas/widgets/HostPort.scala
+@@ -33,8 +33,6 @@ class HostPortIO[+T <: Data](private val targetPortProto: T) extends Record with
+ 
+   val elements = collection.immutable.ListMap(Seq("fromHost" -> fromHost, "toHost" -> toHost, "hBits" -> hBits):_*)
+ 
+-  override def cloneType: this.type = new HostPortIO(targetPortProto).asInstanceOf[this.type]
+-
+   private[midas] def getClock(): Clock = {
+     val allTargetClocks = SimUtils.findClocks(targetPortProto)
+     require(allTargetClocks.nonEmpty,
+diff --git a/sim/midas/src/main/scala/midas/widgets/PeekPokeIO.scala b/sim/midas/src/main/scala/midas/widgets/PeekPokeIO.scala
+index 733074fb4..ec3cbf3e0 100644
+--- a/sim/midas/src/main/scala/midas/widgets/PeekPokeIO.scala
++++ b/sim/midas/src/main/scala/midas/widgets/PeekPokeIO.scala
+@@ -180,7 +180,6 @@ class PeekPokeTokenizedIO(private val targetIO: PeekPokeTargetIO) extends Record
+   val outs  = targetOutputs.map({ case (field, name) => name -> InputChannel(field) })
+   val ins = targetInputs.map({ case (field, name) => name -> OutputChannel(field) })
+   override val elements = ListMap((ins ++ outs):_*)
+-  override def cloneType = new PeekPokeTokenizedIO(targetIO).asInstanceOf[this.type]
+ }
+ 
+ object PeekPokeTokenizedIO {
+@@ -210,7 +209,6 @@ class PeekPokeTargetIO(targetIO: Seq[(String, Data)]) extends Record {
+     Seq("clock" -> clock) ++
+     targetIO.map({ case (name, field) => name -> Flipped(chiselTypeOf(field)) })
+   ):_*)
+-  override def cloneType = new PeekPokeTargetIO(targetIO).asInstanceOf[this.type]
+ }
+ 
+ class PeekPokeBridge(targetIO: Seq[(String, Data)]) extends BlackBox
+diff --git a/sim/midas/src/main/scala/midas/widgets/PrintBridge.scala b/sim/midas/src/main/scala/midas/widgets/PrintBridge.scala
+index e7b2d05e4..eb943b15b 100644
+--- a/sim/midas/src/main/scala/midas/widgets/PrintBridge.scala
++++ b/sim/midas/src/main/scala/midas/widgets/PrintBridge.scala
+@@ -25,7 +25,6 @@ class PrintRecord(portType: firrtl.ir.BundleType, val formatString: String) exte
+   val enable = Output(Bool())
+ 
+   val elements = ListMap((Seq("enable" -> enable) ++ args):_*)
+-  override def cloneType = new PrintRecord(portType, formatString).asInstanceOf[this.type]
+ 
+   // Gets the bit position of each argument after the record has been flattened to a UInt
+   def argumentOffsets() = args.foldLeft(Seq(enable.getWidth))({
+@@ -43,7 +42,6 @@ class PrintRecordBag(resetPortName: String, printPorts: Seq[(firrtl.ir.Port, Str
+   })
+ 
+   val elements = ListMap(((resetPortName -> underGlobalReset) +: printRecords):_*)
+-  override def cloneType = new PrintRecordBag(resetPortName, printPorts).asInstanceOf[this.type]
+ 
+   // Generates a Bool indicating if at least one Printf has it's enable set on this cycle
+   def hasEnabledPrint(): Bool = printRecords.map(_._2.enable).foldLeft(false.B)(_ || _) && !underGlobalReset
+diff --git a/sim/midas/src/main/scala/midas/widgets/SerializationUtils.scala b/sim/midas/src/main/scala/midas/widgets/SerializationUtils.scala
+index 0eeb1a1a6..a19edb00e 100644
+--- a/sim/midas/src/main/scala/midas/widgets/SerializationUtils.scala
++++ b/sim/midas/src/main/scala/midas/widgets/SerializationUtils.scala
+@@ -31,7 +31,6 @@ object SerializationUtils {
+     val inputPorts  = inputs.map(field => field.name -> Input(field.regenType()))
+     val outputPorts  = outputs.map(field => field.name -> Output(field.regenType()))
+     override val elements = immutable.ListMap((inputPorts ++ outputPorts):_*)
+-    override def cloneType = new RegeneratedTargetIO(inputs, outputs).asInstanceOf[this.type]
+   }
+ }
+ 
+diff --git a/sim/src/main/scala/midasexamples/PointerChaser.scala b/sim/src/main/scala/midasexamples/PointerChaser.scala
+index f0d1adfdb..d1431da5d 100644
+--- a/sim/src/main/scala/midasexamples/PointerChaser.scala
++++ b/sim/src/main/scala/midasexamples/PointerChaser.scala
+@@ -60,7 +60,7 @@ class PointerChaserDUT(implicit val p: Parameters) extends Module with HasNastiP
+ 
+   when (rFire && memoryIF.r.bits.last){
+     resultValid := isFinalNode
+-    resultReg := resultReg + memoryIF.r.bits.data.asSInt()
++    resultReg := resultReg + memoryIF.r.bits.data.asSInt
+   }.elsewhen (doneFire) {
+     resultValid := false.B
+     resultReg := 0.S
+diff --git a/target-design/chipyard b/target-design/chipyard
+index 336f22514..ef3409f87 160000
+--- a/target-design/chipyard
++++ b/target-design/chipyard
+@@ -1 +1 @@
+-Subproject commit 336f225143590f9060ebe7101e96f235f96db985
++Subproject commit ef3409f87ff2988fa862ea48c995d2c27c93c7a2
