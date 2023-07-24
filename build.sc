@@ -120,13 +120,6 @@ object blocks extends CommonModule with SbtModule {
   override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
 }
 
-object shells extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "rocket-chip-fpga-shells"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, blocks)
-}
-
 // UCB
 object mychiseltest extends dependencies.`chisel-testers2`.build.chiseltestCrossModule(ivys.sv) {
   override def scalaVersion = ivys.sv
@@ -302,12 +295,6 @@ object chipyard extends CommonModule with SbtModule { cy =>
     override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, boom)
   }
 
-  object fpga extends CommonModule with SbtModule {
-
-    override def millSourcePath = basePath / "fpga"
-    override def moduleDeps = super.moduleDeps ++ Seq(shells, chipyard)
-  }
-
   object utilities extends CommonModule with SbtModule {
     override def millSourcePath = basePath / "generators" / "utilities"
     override def moduleDeps = super.moduleDeps ++ Seq(chipyard)
@@ -317,7 +304,7 @@ object chipyard extends CommonModule with SbtModule { cy =>
 // Dummy
 
 object playground extends CommonModule {
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, shells, firesim, boom, chipyard, chipyard.fpga, chipyard.utilities, mychiseltest)
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, firesim, boom, chipyard, chipyard.utilities, mychiseltest)
 
   // add some scala ivy module you like here.
   override def ivyDeps = Agg(
