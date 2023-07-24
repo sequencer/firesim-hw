@@ -30,8 +30,6 @@ jobs:
           make patch
       - name: Check Mill Compile
         run: make compile
-      - name: Check Sanity
-        run: make test
   nix:
     if: github.repository == 'chipsalliance/playground'
     runs-on: ubuntu-latest

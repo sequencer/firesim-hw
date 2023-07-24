@@ -121,23 +121,6 @@ Currently, only support **Arch Linux**, if you are using other distros please in
 * antlr4
   - Arch Linux: antlr4
 
-## SanityTests
-This package is the standalone tests to check is bumping correct or not, served as the unittest, this also can be a great example to illustrate usages.
-
-**NOTICE: SanityTests also contains additional system dependencies:**
-* clang: bootrom cross compiling and veriltor C++ -> binary compiling
-  - Arch Linux: clang
-* llvm: gnu toolchain replacement 
-  - Arch Linux: llvm
-* lld: LLVM based linker
-  - Arch Linux: lld
-* verilator -> Verilog -> C++ generation
-  - Arch Linux: verilator numactl
-* cmake -> verilator emulator build system
-  - Arch Linux: cmake
-* ninja -> verilator emulator build system
-  - Arch Linux: ninja
-
 ### rocketchip
 This package is a replacement to RocketChip Makefile based generator, it directly generate a simple RocketChip emulator with verilator and linked to spike. 
 ```

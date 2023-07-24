@@ -69,21 +69,9 @@
 [submodule "sha3"]
 	path = dependencies/sha3
 	url = git@github.com:ucb-bar/sha3.git
-[submodule "dependencies/riscv-isa-sim"]
-	path = dependencies/riscv-isa-sim
-	url = git@github.com:riscv/riscv-isa-sim.git
 [submodule "dependencies/ibex-wrapper"]
 	path = dependencies/ibex-wrapper
 	url = git@github.com:ucb-bar/ibex-wrapper.git
-[submodule "dependencies/llvm-project"]
-	path = dependencies/llvm-project
-	url = git@github.com:llvm/llvm-project.git
-[submodule "dependencies/musl"]
-	path = dependencies/musl
-	url = git@github.com:bminor/musl.git
-[submodule "dependencies/riscv-pk"]
-	path = dependencies/riscv-pk
-	url = git@github.com:riscv-software-src/riscv-pk.git
 [submodule "dependencies/constellation"]
 	path = dependencies/constellation
 	url = git@github.com:ucb-bar/constellation.git

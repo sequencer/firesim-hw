@@ -23,8 +23,5 @@ bsp:
 compile:
 	mill -i -j 0 __.compile
 
-test:
-	mill -i -j 0 sanitytests.rocketchip
-
 clean:
 	git clean -fd
