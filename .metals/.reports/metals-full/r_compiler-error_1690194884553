@@ -1,0 +1,94 @@
+java.lang.AssertionError: NoDenotation.owner
+occurred in the presentation compiler.
+
+action parameters:
+uri: file://<WORKSPACE>/dependencies/dsptools/src/main/scala/examples/StreamingAutocorrelator.scala
+text:
+// SPDX-License-Identifier: Apache-2.0
+
+package examples
+
+import chisel3._
+import dsptools.{hasContext, DspContext, Grow}
+import dsptools.examples.TransposedStreamingFIR
+import spire.algebra.Ring
+
+class StreamingAutocorrelator[T <: Data:Ring](inputGenerator: => T, outputGenerator: => T, delay: Int, windowSize: Int)
+                                         extends Module with hasContext {
+//  implicit val ev2 = ev(context)
+  val io = IO(new Bundle {
+    val input = Input(inputGenerator)
+    val output = Output(outputGenerator)
+  })
+
+  // create a sequence of registers (head is io.input)
+  val delays = (0 until delay + windowSize).scanLeft(io.input) { case (left, _) =>
+    val nextReg = Reg(inputGenerator)
+    nextReg := left
+    nextReg
+  }
+
+  val window = delays.drop(delay + 1).reverse
+
+  val firFilter = DspContext.withOverflowType(Grow) {
+    Module(new TransposedStreamingFIR(inputGenerator, outputGenerator, inputGenerator, windowSize))
+  }
+
+  firFilter.io.taps := window
+  firFilter.io.input := io.input
+  io.output := firFilter.io.output
+}
+
+
+
+error stacktrace:
+dotty.tools.dotc.core.SymDenotations$NoDenotation$.owner(SymDenotations.scala:2576)
+	dotty.tools.dotc.core.SymDenotations$SymDenotation.isSelfSym(SymDenotations.scala:711)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:157)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.fold$1(Trees.scala:1532)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.apply(Trees.scala:1534)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1565)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.traverseChildren(Trees.scala:1661)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:278)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1573)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.traverseChildren(Trees.scala:1661)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:278)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.fold$1(Trees.scala:1532)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.apply(Trees.scala:1534)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1571)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.traverseChildren(Trees.scala:1661)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:278)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse$$anonfun$13(ExtractSemanticDB.scala:218)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	scala.collection.immutable.List.foreach(List.scala:333)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:218)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1616)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.traverseChildren(Trees.scala:1661)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:181)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse$$anonfun$11(ExtractSemanticDB.scala:204)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	scala.collection.immutable.List.foreach(List.scala:333)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:204)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.apply(Trees.scala:1660)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1624)
+	dotty.tools.dotc.ast.Trees$Instance$TreeAccumulator.foldOver(Trees.scala:1538)
+	dotty.tools.dotc.ast.Trees$Instance$TreeTraverser.traverseChildren(Trees.scala:1661)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:178)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse$$anonfun$1(ExtractSemanticDB.scala:142)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	scala.collection.immutable.List.foreach(List.scala:333)
+	dotty.tools.dotc.semanticdb.ExtractSemanticDB$Extractor.traverse(ExtractSemanticDB.scala:142)
+	scala.meta.internal.pc.SemanticdbTextDocumentProvider.textDocument(SemanticdbTextDocumentProvider.scala:38)
+	scala.meta.internal.pc.ScalaPresentationCompiler.semanticdbTextDocument$$anonfun$1(ScalaPresentationCompiler.scala:174)
