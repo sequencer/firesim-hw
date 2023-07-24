@@ -152,10 +152,3 @@ index f0d1adfdb..d1431da5d 100644
    }.elsewhen (doneFire) {
      resultValid := false.B
      resultReg := 0.S
-diff --git a/target-design/chipyard b/target-design/chipyard
-index 336f22514..ef3409f87 160000
---- a/target-design/chipyard
-+++ b/target-design/chipyard
-@@ -1 +1 @@
--Subproject commit 336f225143590f9060ebe7101e96f235f96db985
-+Subproject commit ef3409f87ff2988fa862ea48c995d2c27c93c7a2
