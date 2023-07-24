@@ -22,10 +22,10 @@ index 8a1a8b60..9ce7d00c 100644
    dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep))
  }
  libraryDependencies ++= Seq(
-diff --git a/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala b/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
+diff --git a/src/main/scala/barstools/iocell/chisel/IOCell.scala b/src/main/scala/barstools/iocell/chisel/IOCell.scala
 index b90e43ac..457fa12b 100644
---- a/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
-+++ b/iocell/src/main/scala/barstools/iocell/chisel/IOCell.scala
+--- a/src/main/scala/barstools/iocell/chisel/IOCell.scala
++++ b/src/main/scala/barstools/iocell/chisel/IOCell.scala
 @@ -153,7 +153,7 @@ object IOCell {
      * @param name An optional name or name prefix to use for naming IO cells
      * @return A Seq of all generated IO cell instances
