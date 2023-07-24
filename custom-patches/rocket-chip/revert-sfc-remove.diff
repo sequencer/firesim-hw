@@ -1,0 +1,1840 @@
+diff --git a/src/main/scala/aspects/RenameModulesAspect.scala b/src/main/scala/aspects/RenameModulesAspect.scala
+new file mode 100644
+index 000000000..a062307ce
+--- /dev/null
++++ b/src/main/scala/aspects/RenameModulesAspect.scala
+@@ -0,0 +1,46 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.aspects
++
++import chisel3.aop.Aspect
++import chisel3.RawModule
++
++import firrtl.AnnotationSeq
++import firrtl.stage.RunFirrtlTransformAnnotation
++
++import freechips.rocketchip.transforms.naming.{OverrideDesiredNameAnnotation, RenameDesiredNames}
++
++/** An aspect that renames modules
++  *
++  * @example renaming all Queues in a design to "Queue_$bundleType_entries_$numEntries"
++  * {{{
++  * case object StabilizeQueueNames extends RenameModulesAspect({ top: RawModule =>
++  *   chisel3.aop.Select.collectDeep(top) {
++  *     case m: Queue[_] =>
++  *       m -> s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}"
++  *   }.toSeq
++  * })
++  * }}}
++  *
++  * @example renaming a specific instance of RocketCore in the design
++  * {{{
++  * case object RenameRocketCore0 extends RenameModulesAspect({ top: RawModule =>
++  *   chisel3.aop.Select.collectDeep(top) {
++  *     case th: TestHarness =>
++  *       val core = th.ldut.rocketTiles.head.module.core
++  *       core -> "Rocket_Core_0"
++  *   }.toSeq
++  * })
++  * }}}
++  *
++  * @param collectNameOverrides a function that takes the design top module and returns pairs of name overrides for the modules under the top module in the hierarchy
++  */
++abstract class RenameModulesAspect(
++  collectNameOverrides: RawModule => Seq[(RawModule, String)]
++  ) extends Aspect[RawModule] {
++  final def toAnnotation(top: RawModule): AnnotationSeq = {
++    RunFirrtlTransformAnnotation(new RenameDesiredNames) +: collectNameOverrides(top).map {
++      case (m, nameOverride) => OverrideDesiredNameAnnotation(nameOverride, m.toTarget)
++    }
++  }
++}
+diff --git a/src/main/scala/groundtest/Generator.scala b/src/main/scala/groundtest/Generator.scala
+new file mode 100644
+index 000000000..6279c67b4
+--- /dev/null
++++ b/src/main/scala/groundtest/Generator.scala
+@@ -0,0 +1,8 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.groundtest
++
++import firrtl.options.StageMain
++import freechips.rocketchip.system.RocketChipStage
++
++object Generator extends StageMain(new RocketChipStage)
+diff --git a/src/main/scala/linting/LintAnnotation.scala b/src/main/scala/linting/LintAnnotation.scala
+new file mode 100644
+index 000000000..ecf180b91
+--- /dev/null
++++ b/src/main/scala/linting/LintAnnotation.scala
+@@ -0,0 +1,36 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++
++import firrtl.ir.{Info, FileInfo}
++import firrtl.annotations.NoTargetAnnotation
++import chisel3.experimental.ChiselAnnotation
++
++/** Parent trait for all linting annotations */
++trait LintAnnotation extends NoTargetAnnotation with ChiselAnnotation {
++  override def toFirrtl = this
++}
++
++/** Represents a linting violation under a given linter rule */
++case class Violation(linter: rule.LintRule, info: Info, message: String, modules: Set[String]) extends LintAnnotation {
++  def getScalaFiles: Seq[String] = {
++    val scala = "(.*\\.scala).*".r
++    rule.flatten(info).flatMap {
++      case f: FileInfo => f.info.serialize match {
++        case scala(file) => Some(file)
++        case other => None
++      }
++      case other => None
++    }
++  }
++}
++
++/** A list of files to ignore lint violations on, for a given lint rule */
++case class Whitelist(lintName: String, whiteList: Set[String]) extends LintAnnotation
++
++/** A container of lint rule violation display options */
++case class DisplayOptions(
++    level: String  = "strict",
++    totalLimit: Option[Int] = None,
++    perErrorLimit: Map[String, Int] = Map.empty
++) extends LintAnnotation
+diff --git a/src/main/scala/linting/LintException.scala b/src/main/scala/linting/LintException.scala
+new file mode 100644
+index 000000000..04d66c022
+--- /dev/null
++++ b/src/main/scala/linting/LintException.scala
+@@ -0,0 +1,57 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++
++import firrtl.FirrtlUserException
++
++/** Thrown to report all linting rule violations, according to the display options */
++case class LintException(seq: Seq[Violation], lintDisplayOptions: DisplayOptions) extends FirrtlUserException(
++  LintException.buildMessage(seq, lintDisplayOptions)
++)
++
++object LintException {
++  private def makeNumber(max: Int, n: Int, prefix: String): String = {
++    val nDigits = max.toString.size
++    val nLeading = nDigits - n.toString.size
++    prefix * nLeading + n.toString
++  }
++
++  private[linting] def buildMessage(seq: Seq[Violation], lintDisplayOptions: DisplayOptions): String = {
++    val groupedErrors = seq.groupBy {
++      case l: Violation => l.linter.lintName
++    }
++    val maxErrorNumber = groupedErrors.keys.max
++
++    val (_, reports) = groupedErrors.toSeq.sortBy(_._1).reverse.foldRight((0, Seq.empty[String])) {
++      case ((lintName: String, lintErrors: Seq[Violation]), (totalErrors: Int, reportsSoFar: Seq[String])) =>
++        val le                  = lintErrors.head.linter
++        val perErrorLimit       = lintDisplayOptions.perErrorLimit.getOrElse(lintName, lintErrors.size)
++        val totalErrorLimit     = lintDisplayOptions.totalLimit.map(t => t - totalErrors).getOrElse(perErrorLimit)
++        val remainingErrorLimit = totalErrorLimit.min(perErrorLimit)
++        val scalaFiles          = lintErrors.flatMap(_.getScalaFiles).distinct
++        val lintString          = lintName
++        val header =
++          s"""
++             |Lint rule ${le.lintName}: ${lintErrors.size} exceptions!
++             | - Recommended fix:
++             |     ${le.recommendedFix}
++             | - Whitelist file via Chisel cmdline arg:
++             |     ${le.whitelistAPI(scalaFiles)}
++             | - Whitelist file via Chisel scala API:
++             |     ${le.scalaAPI(scalaFiles)}
++             | - Disable this linting check:
++             |     ${le.disableCLI}
++             | - Modify display settings with:
++             |     --lint-options ...,display:${lintName}=<number>,...
++             |""".stripMargin
++
++        val errors = lintErrors.zip(1 to remainingErrorLimit).map {
++          case (lint: Violation, idx: Int) =>
++            s"$lintString.${makeNumber(remainingErrorLimit.min(lintErrors.size),idx,"0")}:${lint.info} ${lint.message} in ${lint.modules}"
++          }.mkString("\n")
++
++        (totalErrors + remainingErrorLimit, (header + errors) +: reportsSoFar)
++    }
++    reports.reverse.mkString("\n")
++  }
++}
+diff --git a/src/main/scala/linting/LintReporter.scala b/src/main/scala/linting/LintReporter.scala
+new file mode 100644
+index 000000000..7b3a74e7f
+--- /dev/null
++++ b/src/main/scala/linting/LintReporter.scala
+@@ -0,0 +1,77 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++
++import firrtl._
++import firrtl.options.{RegisteredLibrary, ShellOption, PreservesAll, Dependency}
++import firrtl.stage.RunFirrtlTransformAnnotation
++
++/** The final transform for all linting
++  * Collects all computer lint violations and displays them
++  * Optionally kills the compilation, or proceeds with a warning
++  */
++final class LintReporter extends Transform with RegisteredLibrary with DependencyAPIMigration with PreservesAll[Transform] {
++  val displayTotal = "displayTotal=(\\d+)".r
++  val perTotal = "display:([_a-zA-Z0-9\\-]+)=(\\d+)".r
++  val perAllTotal = "display:\\*=(\\d+)".r
++
++  lazy val options = Seq(
++    new ShellOption[String](
++      longOption = s"lint",
++      toAnnotationSeq = {
++        case "*" => RunFirrtlTransformAnnotation(this) +: (Linter.lintMap.values.map(RunFirrtlTransformAnnotation(_)).toSeq)
++        case other => RunFirrtlTransformAnnotation(this) +: (other.split(',').toSeq.map { s =>
++          Linter.lintMap.get(s) match {
++            case Some(l) => RunFirrtlTransformAnnotation(l)
++            case None => sys.error(s"Unknown linter argument: $s")
++          }
++        })
++      },
++      helpText = s"Enable linting for specified rules, where * is all rules. Available rules: ${Linter.linters.map(l => l.lintName).mkString(",")}.",
++      helpValueName = Some("[*]|[<lintRule>,<lintRule>,...]")
++    ),
++    new ShellOption[String](
++      longOption = "lint-options",
++      toAnnotationSeq = { arg: String =>
++        val displayOptions = arg.split(',').toSeq.foldLeft(DisplayOptions()) { (opt, str) =>
++          str match {
++            case "strict" => opt.copy(level = "strict")
++            case "warn" => opt.copy(level = "warn")
++            case displayTotal(n) => opt.copy(totalLimit = Some(n.toInt))
++            case perTotal(lint, n) => opt.copy(perErrorLimit = opt.perErrorLimit + (Linter.lintMap(lint).lintName -> n.toInt))
++            case perAllTotal(n) => opt.copy(perErrorLimit = Linter.linters.map(l => l.lintName -> n.toInt).toMap)
++            case other => throw sys.error(s"Unrecognized option passed to --lint: $other")
++          }
++        }
++        Seq(displayOptions)
++      },
++      helpText = "Customize linting options, including strict/warn or number of violations displayed.",
++      helpValueName = Some("(strict|warn)[,displayTotal=<numError>][,display:<lintName>=<numError>]")
++    )
++  )
++
++  // Run before ExpandWhens
++  override def optionalPrerequisiteOf = Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])
++
++  override def execute(state: CircuitState): CircuitState = {
++    val grouped = state.annotations.groupBy {
++      case e: Violation => "v"
++      case o: DisplayOptions => "o"
++      case w: Whitelist => "w"
++      case other => "a"
++    }
++
++    val violations = grouped.getOrElse("v", Nil).asInstanceOf[Seq[Violation]]
++    val options = grouped.getOrElse("o", Nil).headOption.getOrElse(DisplayOptions()).asInstanceOf[DisplayOptions]
++    val remainingAnnotations = grouped.getOrElse("a", Nil)
++
++    if(violations.nonEmpty) {
++      options.level match {
++        case "strict" => throw LintException(violations.toSeq, options)
++        case "warn" => println(LintException.buildMessage(violations.toSeq, options))
++      }
++    }
++
++    state.copy(annotations = remainingAnnotations)
++  }
++}
+diff --git a/src/main/scala/linting/Linter.scala b/src/main/scala/linting/Linter.scala
+new file mode 100644
+index 000000000..8fd421fab
+--- /dev/null
++++ b/src/main/scala/linting/Linter.scala
+@@ -0,0 +1,32 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++
++import chisel3.experimental.annotate
++
++/** Chisel users: Use to whitelist files
++  * Lint rule writers: update linters list whenever a new lint rule is created
++  */
++object Linter {
++
++  /** Use to whitelist specific files from specific linting rules
++    *
++    * @param lintRuleName the name of the lint rule
++    * @param filenames scala files to except from this linting rule
++    */
++  def whitelist(lintRuleName: String, filenames: String*) = {
++    require(lintMap.contains(lintRuleName), s"Unknown lint name: $lintRuleName")
++    annotate(Whitelist(lintRuleName, filenames.toSet))
++  }
++
++  // Update list for any new lint rule
++  private[linting] lazy val linters = Seq(
++    new rule.LintAnonymousRegisters,
++    new rule.LintTruncatingWidths,
++    new rule.LintConflictingModuleNames
++  )
++
++  private [linting] lazy val lintMap = linters.flatMap {
++    l => Seq(l.lintName -> l)
++  }.toMap
++}
+diff --git a/src/main/scala/linting/rule/LintAnonymousRegisters.scala b/src/main/scala/linting/rule/LintAnonymousRegisters.scala
+new file mode 100644
+index 000000000..0192746c6
+--- /dev/null
++++ b/src/main/scala/linting/rule/LintAnonymousRegisters.scala
+@@ -0,0 +1,34 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++package rule
++
++import firrtl.ir._
++import firrtl.options.Dependency
++
++
++/** Reports all anonymous registers in design
++  * An anonymous register is one which is prefixed with an "_"
++  */
++final class LintAnonymousRegisters extends LintRule {
++
++  val recommendedFix: String = "Use named intermediate val, or if that fails use @chiselName or *.suggestName(...)"
++
++  val lintName: String = "anon-regs"
++
++  // Should run before LowerTypes so anonymous aggregate registers are reported as one register
++  override def optionalPrerequisiteOf = super.optionalPrerequisiteOf :+ Dependency(firrtl.passes.LowerTypes)
++
++  override protected def lintStatement(violations: Violations, mname: String)(s: Statement): Unit = {
++    s match {
++      case r: DefRegister  if isTemporary(r.name) =>
++        // Report scala info, if its present. Otherwise, use existing Info
++        getScalaInfo(r.info) match {
++          case Some(scalaInfo: FileInfo) => updateViolations(scalaInfo, "", violations, mname)
++          case None                      => updateViolations(r.info, "", violations, mname)
++        }
++      case other =>
++    }
++    super.lintStatement(violations, mname)(s)
++  }
++}
+diff --git a/src/main/scala/linting/rule/LintConflictingModuleNames.scala b/src/main/scala/linting/rule/LintConflictingModuleNames.scala
+new file mode 100644
+index 000000000..e805c2d91
+--- /dev/null
++++ b/src/main/scala/linting/rule/LintConflictingModuleNames.scala
+@@ -0,0 +1,104 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++package rule
++
++import firrtl._
++import firrtl.annotations.{IsModule, SingleTargetAnnotation, Target}
++import firrtl.ir._
++import firrtl.options.Dependency
++
++import freechips.rocketchip.transforms.naming.RenameDesiredNames
++
++import chisel3.aop.{Aspect, Select}
++import chisel3.RawModule
++
++import scala.collection.mutable
++
++/** Captures the original desired name for a module
++  */
++case class DesiredNameAnnotation(
++  desiredName: String,
++  target: IsModule
++) extends SingleTargetAnnotation[IsModule] {
++  def duplicate(newTarget: IsModule): DesiredNameAnnotation = {
++    this.copy(target = newTarget)
++  }
++}
++
++/** Collects [[DesiredNameAnnotation]]s for [[LintConflictingModuleNames]] to lint
++  */
++case object LintConflictingModuleNamesAspect extends Aspect[RawModule] {
++  def toAnnotation(top: RawModule): AnnotationSeq = {
++    Select.collectDeep(top) {
++      case m: RawModule => DesiredNameAnnotation(m.desiredName, m.toTarget)
++    }.toSeq
++  }
++}
++
++/** This LintRule checks for module name collisions
++  *
++  * Module name collisions occur when different [[Module]]s are annotated with
++  * [[DesiredNameAnnotation]]s that have the same desiredName. Module name
++  * conflicts will cause a [[LintViolation]].
++  */
++final class LintConflictingModuleNames extends LintRule {
++  val recommendedFix: String = "override desiredName based on module parameters ('override def desiredName = \"...\"') or use RenameModulesAspect"
++
++  val lintName: String = "conflicting-module-names"
++
++  // depends on DedupModules which comes from super[LintRule].optionalPrerequisites
++  override def optionalPrerequisites: Seq[Dependency[Transform]] =
++    Dependency[RenameDesiredNames] +: super.optionalPrerequisites
++
++  override def execute(state: CircuitState): CircuitState = {
++    val violations = new Violations()
++
++    val modMap = state.circuit.modules.collect {
++      case m: Module => m.name -> m
++    }.toMap
++
++    val desiredNameAnnos = state.annotations.collect {
++      case a: DesiredNameAnnotation if a.target.circuit == state.circuit.main => a
++    }
++
++    val moduleToDesiredName: mutable.Map[String, mutable.Set[String]] = mutable.Map()
++
++    val nameMap = desiredNameAnnos.groupBy(_.desiredName).mapValues { annos =>
++      annos.map(a => Target.referringModule(a.target).module).distinct.map { referringModule =>
++        require(modMap.contains(referringModule), s"ModuleNameAnnotations may not refer to blackboxes: $referringModule")
++        val desiredNames = moduleToDesiredName.getOrElseUpdate(referringModule, mutable.Set())
++        desiredNames += annos.head.desiredName
++        modMap(referringModule)
++      }
++    }
++
++    val conflictingDesiredNames = moduleToDesiredName.collect {
++      case kv@ (moduleName, desiredName) if desiredName.size > 1 => kv
++    }
++
++    require(conflictingDesiredNames.size == 0, {
++      val explanation = conflictingDesiredNames.map {
++        case (modName, desiredNames) => s"  ${modName}: ${desiredNames.mkString(", ")}"
++      }.mkString("\n")
++      s"Modules may not have more than one desiredName:\n${explanation}"
++    })
++
++    nameMap.foreach {
++      case (desiredName, modules) if modules.size > 1 =>
++        val msg = s"Module conflicts for desired name $desiredName: ${modules.map(_.name).mkString(", ")}"
++        val info = MultiInfo(modules.map(_.info))
++        val mods = violations.getOrElse((info, msg), Set.empty)
++        violations((info, msg)) = mods ++ modules.map(_.name)
++      case _ =>
++    }
++
++    val whitelist = collectWhitelist(state.annotations)
++    val errorList = violations.collect {
++      case ((info, message), mods) if !isWhitelisted(info, whitelist) => Violation(this, info, message, mods)
++    }.toSeq.sortBy { _.toString }
++    val newAnnos = errorList ++ state.annotations
++
++    state.copy(annotations = newAnnos)
++  }
++}
+diff --git a/src/main/scala/linting/rule/LintRule.scala b/src/main/scala/linting/rule/LintRule.scala
+new file mode 100644
+index 000000000..4b053a8cb
+--- /dev/null
++++ b/src/main/scala/linting/rule/LintRule.scala
+@@ -0,0 +1,92 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++package rule
++
++import firrtl._
++import firrtl.ir._
++import firrtl.traversals.Foreachers._
++import firrtl.options.{RegisteredLibrary, ShellOption, Dependency, PreservesAll}
++import firrtl.stage.RunFirrtlTransformAnnotation
++
++/** Template class for lint rules
++  * @note After extending this class, be sure to update the linter list in [[Linter]]
++  */
++abstract class LintRule extends Transform with RegisteredLibrary with DependencyAPIMigration with PreservesAll[Transform] {
++
++  // Name of this rule. Cannot contain spaces!
++  val lintName: String
++
++  // Recommended fix to the user
++  val recommendedFix: String
++
++  lazy val disableCLI: String = s"Omit $lintName from --lint option"
++
++  /** A string representation of using the Chisel/Scala API to whitelist files
++    *
++    * @param files a list of scala files to whitelist
++    */
++  def scalaAPI(files: Seq[String]): String = {
++    val setArg = files.map(f => s""""$f"""").mkString(",")
++    s"""whitelist("$lintName", Set($setArg))"""
++  }
++
++  /** A string representation of using the commandline API to whitelist files
++    *
++    * @param files a list of scala files to whitelist
++    */
++  def whitelistAPI(files: Seq[String]): String = {
++    val arg = files.mkString(",")
++    s"""--${options.head.longOption} $arg"""
++  }
++
++  /** A utiltiy functions to find whitelisted files in the given annotations
++    *
++    * @param annotations Input annotations to find all whitelisted files for this lint rule
++    */
++  def collectWhitelist(annotations: AnnotationSeq): Set[String] = annotations.flatMap {
++    case Whitelist(name, whitelist) if name == lintName => whitelist.toSeq
++    case other => Nil
++  }.toSet
++
++
++  lazy val options = Seq(
++    new ShellOption[String](
++      longOption = s"lint-whitelist:$lintName",
++      toAnnotationSeq = {
++        case whitelist: String => Seq(
++          RunFirrtlTransformAnnotation(this),
++          Whitelist(lintName, whitelist.split(',').toSet)
++        )
++      },
++      helpText = "Enable linting anonymous registers for all files except provided files.",
++      helpValueName = Some("<filename1>.scala[,<filename2>.scala]*")
++    )
++  )
++
++  // Run lint rules after deduplication
++  override def optionalPrerequisites: Seq[Dependency[Transform]] = Seq(Dependency[firrtl.transforms.DedupModules])
++
++  // Run lint rules before the Lint Reporter
++  override def optionalPrerequisiteOf: Seq[Dependency[Transform]] = Seq(Dependency[LintReporter])
++
++  override def execute(state: CircuitState): CircuitState = {
++    val violations = new Violations()
++    val whitelist = collectWhitelist(state.annotations)
++    state.circuit.foreach(lintModule(violations))
++    val errorList = violations.collect {
++      case ((info, message), mods) if !isWhitelisted(info, whitelist) => Violation(this, info, message, mods)
++    }.toSeq.sortBy { _.toString }
++    state.copy(annotations = errorList ++ state.annotations )
++  }
++
++  // Can be overridden by subclass implementations
++  protected def lintModule(violations: Violations)(m: DefModule): Unit = {
++    m.foreach(lintStatement(violations, m.name))
++  }
++
++  // Can be overridden by subclass implementations
++  protected def lintStatement(violations: Violations, mname: String)(s: Statement): Unit = {
++    s.foreach(lintStatement(violations, mname))
++  }
++}
+diff --git a/src/main/scala/linting/rule/LintTruncatingWidths.scala b/src/main/scala/linting/rule/LintTruncatingWidths.scala
+new file mode 100644
+index 000000000..9f819b68b
+--- /dev/null
++++ b/src/main/scala/linting/rule/LintTruncatingWidths.scala
+@@ -0,0 +1,42 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++package rule
++
++import firrtl.ir._
++import firrtl.options.Dependency
++
++/** Reports all connections from a wider signal to a smaller signal
++  * Includes subfields of bulk connections
++  */
++final class LintTruncatingWidths extends LintRule {
++
++  override def optionalPrerequisites = Seq(
++    Dependency(firrtl.passes.ExpandConnects), // Require expanding connects to see subfield bulk assignments
++    Dependency[firrtl.passes.InferWidths]     // Require widths to have been inferred
++  )
++
++  // Run prior to expand whens to get better fileinfo information
++  override def optionalPrerequisiteOf = super.optionalPrerequisiteOf :+ Dependency[firrtl.passes.ExpandWhensAndCheck]
++
++  val lintName: String = "trunc-widths"
++
++  val recommendedFix: String = "Truncate width prior to connections"
++
++  override protected def lintStatement(violations: Violations, mname: String)(s: Statement): Unit = {
++    s match {
++      case c@Connect(info, loc, expr) => (loc.tpe, expr.tpe) match {
++        case (GroundType(IntWidth(locWidth)), GroundType(IntWidth(exprWidth))) if exprWidth > locWidth =>
++          val message = s"${c.copy(info = NoInfo).serialize} // Connecting width ${exprWidth} to width ${locWidth}"
++          getScalaInfo(info) match {
++            case Some(scalaInfo: FileInfo) =>
++              updateViolations(scalaInfo, message, violations, mname)
++            case None => updateViolations(info, message, violations, mname)
++          }
++        case other =>
++      }
++      case other =>
++    }
++    super.lintStatement(violations, mname)(s)
++  }
++}
+diff --git a/src/main/scala/linting/rule/package.scala b/src/main/scala/linting/rule/package.scala
+new file mode 100644
+index 000000000..46b74da6f
+--- /dev/null
++++ b/src/main/scala/linting/rule/package.scala
+@@ -0,0 +1,86 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.linting
++
++import firrtl._
++import firrtl.ir._
++import scala.collection.mutable
++
++package object rule {
++  /** Determines whether name is prepended with an underscore, indicating a bad name
++    *
++    * @param name a signal's name
++    */
++  private [linting] def isTemporary(name: String): Boolean = name.nonEmpty && name.head == '_'
++
++  /** Determines whether name is prepended with an underscore, indicating a bad name
++    *
++    * @param expr a expression of a signal name
++    */
++  private [linting] def isTemporary(expr: Expression): Boolean = isTemporary(getName(expr))
++
++  /** Returns the root reference name of an Expression
++    *
++    * @throws Exception
++    * @param expr an expression of a signal name. Cannot contain DoPrims or Muxes etc.
++    */
++  private [linting] def getName(expr: Expression): String = expr match {
++    case r: WRef => r.name
++    case f: WSubField => getName(f.expr)
++    case i: WSubIndex => getName(i.expr)
++    case a: WSubAccess => getName(a.expr)
++    case other => throw new Exception(s"Unexpected match! $other")
++  }
++
++  /** Splits an info into non-nested Infos
++    * Right now the FIRRTL parser concatenates the infos if using both .fir and .scala source locators, instead of using
++    *   MultiInfo. This code will work with both the current concatenation and a future FIRRTL change to migrate to MultiInfo.
++    *
++    * @param info given fileinfo to flatten
++    */
++  private [linting] def flatten(info: Info): Seq[FileInfo] = info match {
++    case MultiInfo(seq) => seq.flatMap(flatten)
++    case f: FileInfo =>
++      val infoRegex = "\\s*(.*\\.scala \\d+:\\d+):(.*\\.fir@\\d+\\.\\d+)\\s*".r
++      f.info.serialize match {
++        case infoRegex(scala, fir) => Seq(FileInfo(StringLit(scala)), FileInfo(StringLit(fir)))
++        case other => Seq(f)
++      }
++    case other => Nil
++  }
++
++  /** Returns the first .scala source location contained inside info
++    *
++    * @param info given fileinfo to find scala fileinfo
++    */
++  private [linting] def getScalaInfo(info: Info): Option[FileInfo] = flatten(info).collectFirst {
++    case i: FileInfo if i.serialize.contains("scala") => i
++  }
++
++  /** Returns whether the given file is contained in the whiteList
++    *
++    * @param info given fileinfo to determine if it is whitelisted
++    * @param whiteList list of files to exempt from lint rule
++    */
++  private [linting] def isWhitelisted(info: Info, whiteList: Set[String]): Boolean = {
++    flatten(info).exists { i =>
++      val file = i.info.serialize.split(' ').head
++      whiteList.contains(file)
++    } 
++  }
++
++  /** Records a linting violation
++    *
++    * @param info given fileinfo of the violation
++    * @param message Message to include in the violation report
++    * @param violations container of existing violations
++    * @param mname module name containing the violation
++    */
++  private [linting] def updateViolations(info: Info, message: String, violations: Violations, mname: String): Unit = {
++      val mods = violations.getOrElse((info, message), Set.empty)
++      violations((info, message)) = mods + mname
++  }
++
++  // Container of violations
++  private [linting] type Violations = mutable.HashMap[(Info, String), Set[String]]
++}
+diff --git a/src/main/scala/stage/RocketChipAnnotations.scala b/src/main/scala/stage/RocketChipAnnotations.scala
+new file mode 100644
+index 000000000..f0c2c1302
+--- /dev/null
++++ b/src/main/scala/stage/RocketChipAnnotations.scala
+@@ -0,0 +1,52 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage
++
++import chisel3.experimental.BaseModule
++import firrtl.annotations.{Annotation, NoTargetAnnotation}
++import firrtl.options.{HasShellOptions, ShellOption, Unserializable}
++
++sealed trait RocketChipOption extends Unserializable { this: Annotation => }
++
++/* required options */
++
++/** Path to top module class */
++case class TopModuleAnnotation(clazz: Class[_ <: Any]) extends NoTargetAnnotation with RocketChipOption
++private[stage] object TopModuleAnnotation extends HasShellOptions {
++  override val options = Seq(
++    new ShellOption[String](
++      longOption = "top-module",
++      toAnnotationSeq = a => Seq(TopModuleAnnotation(Class.forName(a).asInstanceOf[Class[_ <: BaseModule]])),
++      helpText = "<top module>",
++      shortOption = Some("T")
++    )
++  )
++}
++
++/** Paths to config classes */
++case class ConfigsAnnotation(configNames: Seq[String]) extends NoTargetAnnotation with RocketChipOption
++private[stage] object ConfigsAnnotation extends HasShellOptions {
++  override val options = Seq(
++    new ShellOption[Seq[String]](
++      longOption = "configs",
++      toAnnotationSeq = a => Seq(ConfigsAnnotation(a)),
++      helpText = "<comma-delimited configs>",
++      shortOption = Some("C")
++    )
++  )
++}
++
++/* optional options */
++
++/** Optional base name for generated files' filenames */
++case class OutputBaseNameAnnotation(outputBaseName: String) extends NoTargetAnnotation with RocketChipOption
++private[stage] object OutputBaseNameAnnotation extends HasShellOptions {
++  override val options = Seq(
++    new ShellOption[String](
++      longOption = "name",
++      toAnnotationSeq = a => Seq(OutputBaseNameAnnotation(a)),
++      helpText = "<base name of output files>",
++      shortOption = Some("n")
++    )
++  )
++}
+diff --git a/src/main/scala/stage/RocketChipCli.scala b/src/main/scala/stage/RocketChipCli.scala
+new file mode 100644
+index 000000000..c6e322607
+--- /dev/null
++++ b/src/main/scala/stage/RocketChipCli.scala
+@@ -0,0 +1,17 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage
++
++import firrtl.options.Shell
++
++trait RocketChipCli { this: Shell =>
++
++  parser.note("Rocket Chip Compiler Options")
++  Seq(
++    TopModuleAnnotation,
++    ConfigsAnnotation,
++    OutputBaseNameAnnotation
++  )
++    .foreach(_.addOptions(parser))
++
++}
+diff --git a/src/main/scala/stage/RocketChipOptions.scala b/src/main/scala/stage/RocketChipOptions.scala
+new file mode 100644
+index 000000000..2fac6a276
+--- /dev/null
++++ b/src/main/scala/stage/RocketChipOptions.scala
+@@ -0,0 +1,41 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage
++
++class RocketChipOptions private[stage] (
++                                         val topModule:         Option[Class[_ <: Any]] = None,
++                                         val configNames:       Option[Seq[String]] = None,
++                                         val outputBaseName:    Option[String] = None) {
++
++  private[stage] def copy(
++                           topModule:         Option[Class[_ <: Any]] = topModule,
++                           configNames:       Option[Seq[String]] = configNames,
++                           outputBaseName:    Option[String] = outputBaseName,
++                         ): RocketChipOptions = {
++
++    new RocketChipOptions(
++      topModule=topModule,
++      configNames=configNames,
++      outputBaseName=outputBaseName,
++    )
++  }
++
++  lazy val topPackage: Option[String] = topModule match {
++    case Some(a) => Some(a.getPackage.getName)
++    case _ => None
++  }
++
++  lazy val configClass: Option[String] = configNames match {
++    case Some(names) =>
++      val classNames = names.map{ n => n.split('.').last }
++      Some(classNames.mkString("_"))
++    case _ => None
++  }
++
++  lazy val longName: Option[String] = outputBaseName match {
++    case Some(name) => Some(name)
++    case _ =>
++      if (!topPackage.isEmpty && !configClass.isEmpty) Some(s"${topPackage.get}.${configClass.get}") else None
++  }
++}
++
+diff --git a/src/main/scala/stage/package.scala b/src/main/scala/stage/package.scala
+new file mode 100644
+index 000000000..db5b42234
+--- /dev/null
++++ b/src/main/scala/stage/package.scala
+@@ -0,0 +1,24 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip
++
++import firrtl.AnnotationSeq
++import firrtl.options.OptionsView
++
++package object stage {
++
++  implicit object RocketChipOptionsView extends OptionsView[RocketChipOptions] {
++
++    def view(annotations: AnnotationSeq): RocketChipOptions = annotations
++      .collect { case a: RocketChipOption => a }
++      .foldLeft(new RocketChipOptions()){ (c, x) =>
++        x match {
++          case TopModuleAnnotation(a)         => c.copy(topModule = Some(a))
++          case ConfigsAnnotation(a)           => c.copy(configNames = Some(a))
++          case OutputBaseNameAnnotation(a)    => c.copy(outputBaseName = Some(a))
++        }
++      }
++
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/AddDefaultTests.scala b/src/main/scala/stage/phases/AddDefaultTests.scala
+new file mode 100644
+index 000000000..8a39abef2
+--- /dev/null
++++ b/src/main/scala/stage/phases/AddDefaultTests.scala
+@@ -0,0 +1,144 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++
++import org.chipsalliance.cde.config.Parameters
++import firrtl.AnnotationSeq
++import firrtl.annotations.NoTargetAnnotation
++import firrtl.options.{Dependency, Phase, PreservesAll, Unserializable}
++import firrtl.options.Viewer.view
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite}
++import freechips.rocketchip.subsystem.{TilesLocated, InSubsystem, RocketTileAttachParams}
++import freechips.rocketchip.tile.XLen
++import freechips.rocketchip.util.HasRocketChipStageUtils
++import freechips.rocketchip.system.DefaultTestSuites._
++
++import scala.collection.mutable
++
++/** Annotation that contains a list of [[RocketTestSuite]]s to run */
++case class RocketTestSuiteAnnotation(tests: Seq[RocketTestSuite]) extends NoTargetAnnotation with Unserializable
++
++/** Generates [[RocketTestSuiteAnnotation]] depending on whether the top-module project is part of
++ *  [[freechips.rocketchip.system]] or not (e.g. for unit tests).
++ */
++class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
++  override val dependents = Seq(Dependency[GenerateTestSuiteMakefrags])
++
++  def GenerateDefaultTestSuites(): List[RocketTestSuite] = {
++    List(DefaultTestSuites.groundtest64("p"), DefaultTestSuites.emptyBmarks, DefaultTestSuites.singleRegression)
++  }
++
++  def GenerateSystemTestSuites(annotations: AnnotationSeq): scala.collection.mutable.Buffer[RocketTestSuite] = {
++    val params: Parameters = getConfig(view[RocketChipOptions](annotations).configNames.get).toInstance
++    val xlen = params(XLen)
++    val tests = scala.collection.mutable.Buffer[RocketTestSuite]()
++
++    val regressionTests = mutable.LinkedHashSet(
++      "rv64ud-v-fcvt",
++      "rv64ud-p-fdiv",
++      "rv64ud-v-fadd",
++      "rv64uf-v-fadd",
++      "rv64um-v-mul",
++      "rv64mi-p-breakpoint",
++      "rv64uc-v-rvc",
++      "rv64ud-v-structural",
++      "rv64si-p-wfi",
++      "rv64um-v-divw",
++      "rv64ua-v-lrsc",
++      "rv64ui-v-fence_i",
++      "rv64ud-v-fcvt_w",
++      "rv64uf-v-fmin",
++      "rv64ui-v-sb",
++      "rv64ua-v-amomax_d",
++      "rv64ud-v-move",
++      "rv64ud-v-fclass",
++      "rv64ua-v-amoand_d",
++      "rv64ua-v-amoxor_d",
++      "rv64si-p-sbreak",
++      "rv64ud-v-fmadd",
++      "rv64uf-v-ldst",
++      "rv64um-v-mulh",
++      "rv64si-p-dirty",
++      "rv32mi-p-ma_addr",
++      "rv32mi-p-csr",
++      "rv32ui-p-sh",
++      "rv32ui-p-lh",
++      "rv32uc-p-rvc",
++      "rv32mi-p-sbreak",
++      "rv32ui-p-sll")
++
++    // TODO: for now only generate tests for the first core in the first subsystem
++    val rocketTileParams = params(TilesLocated(InSubsystem)).collect { case n: RocketTileAttachParams => n }.map(_.tileParams)
++    rocketTileParams.headOption.map { tileParams =>
++      val coreParams = tileParams.core
++      val vm = coreParams.useVM
++      val env = if (vm) List("p", "v") else List("p")
++      coreParams.fpu foreach { case cfg =>
++        if (xlen == 32) {
++          tests ++= env.map(rv32uf)
++          if (cfg.fLen >= 64)
++            tests ++= env.map(rv32ud)
++          if (cfg.minFLen <= 16)
++            tests ++= env.map(rv32uzfh)
++        } else {
++          tests += rv32udBenchmarks
++          tests ++= env.map(rv64uf)
++          if (cfg.fLen >= 64)
++            tests ++= env.map(rv64ud)
++          if (cfg.minFLen <= 16)
++            tests ++= env.map(rv64uzfh)
++        }
++      }
++      if (coreParams.useAtomics) {
++        if (tileParams.dcache.flatMap(_.scratch).isEmpty)
++          tests ++= env.map(if (xlen == 64) rv64ua else rv32ua)
++        else
++          tests ++= env.map(if (xlen == 64) rv64uaSansLRSC else rv32uaSansLRSC)
++      }
++      if (coreParams.useCompressed) tests ++= env.map(if (xlen == 64) rv64uc else rv32uc)
++      val (rvi, rvu) =
++        if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
++        else ((if (vm) rv32i else rv32pi), rv32u)
++
++      tests ++= rvi.map(_ ("p"))
++      tests ++= (if (vm) List("v") else List()).flatMap(env => rvu.map(_ (env)))
++      tests += benchmarks
++
++      /* Filter the regression tests based on what the Rocket Chip configuration supports */
++      val extensions = {
++        val fd = coreParams.fpu.map {
++          case cfg if cfg.fLen >= 64 => "fd"
++          case _ => "f"
++        }
++        val m = coreParams.mulDiv.map { case _ => "m" }
++        fd ++ m ++ Seq(if (coreParams.useRVE) Some("e") else Some("i"),
++          if (coreParams.useAtomics) Some("a") else None,
++          if (coreParams.useCompressed) Some("c") else None)
++          .flatten
++          .mkString("")
++      }
++      val re = s"""^rv$xlen[usm][$extensions].+""".r
++      regressionTests.retain {
++        case re() => true
++        case _ => false
++      }
++      tests += new RegressionTestSuite(regressionTests)
++    }
++    tests
++  }
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val ropts = view[RocketChipOptions](annotations)
++    val tests = ropts.topPackage.get match {
++      case "freechips.rocketchip.system" => GenerateSystemTestSuites(annotations)
++      case _ => GenerateDefaultTestSuites()
++    }
++
++    RocketTestSuiteAnnotation(tests.toSeq) +: annotations
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/Checks.scala b/src/main/scala/stage/phases/Checks.scala
+new file mode 100644
+index 000000000..fbfd8bb75
+--- /dev/null
++++ b/src/main/scala/stage/phases/Checks.scala
+@@ -0,0 +1,47 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import firrtl.AnnotationSeq
++import firrtl.annotations.Annotation
++import firrtl.options.{OptionsException, Phase, PreservesAll, TargetDirAnnotation}
++import freechips.rocketchip.stage._
++
++import scala.collection.mutable
++
++/** Checks for the correct type and number of command line arguments */
++class Checks extends Phase with PreservesAll[Phase] {
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val targetDir, topModule, configNames, outputBaseName = mutable.ListBuffer[Annotation]()
++
++    annotations.foreach {
++      case a: TargetDirAnnotation      => a +=: targetDir
++      case a: TopModuleAnnotation      => a +=: topModule
++      case a: ConfigsAnnotation        => a +=: configNames
++      case a: OutputBaseNameAnnotation => a +=: outputBaseName
++      case _ =>
++    }
++
++    def required(annoList: mutable.ListBuffer[Annotation], option: String): Unit = {
++      if (annoList.size != 1) {
++        throw new OptionsException(s"Exactly one $option required")
++      }
++    }
++
++    def optional(annoList: mutable.ListBuffer[Annotation], option: String): Unit = {
++      if (annoList.size > 1) {
++        throw new OptionsException(s"Too many $option options have been specified")
++      }
++    }
++
++    required(targetDir, "target directory")
++    required(topModule, "top module")
++    required(configNames, "configs string (','-delimited)")
++
++    optional(outputBaseName, "output base name")
++
++    annotations
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/GenerateArtefacts.scala b/src/main/scala/stage/phases/GenerateArtefacts.scala
+new file mode 100644
+index 000000000..1b15ac244
+--- /dev/null
++++ b/src/main/scala/stage/phases/GenerateArtefacts.scala
+@@ -0,0 +1,26 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import firrtl.AnnotationSeq
++import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
++import firrtl.options.Viewer.view
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
++
++/** Writes [[ElaborationArtefacts]] into files */
++class GenerateArtefacts extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val targetDir = view[StageOptions](annotations).targetDir
++
++    ElaborationArtefacts.files.foreach { case (extension, contents) =>
++      writeOutputFile(targetDir, s"${view[RocketChipOptions](annotations).longName.get}.${extension}", contents ())
++    }
++
++    annotations
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/GenerateFirrtlAnnos.scala b/src/main/scala/stage/phases/GenerateFirrtlAnnos.scala
+new file mode 100644
+index 000000000..3565c1db1
+--- /dev/null
++++ b/src/main/scala/stage/phases/GenerateFirrtlAnnos.scala
+@@ -0,0 +1,37 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import firrtl.AnnotationSeq
++import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
++import firrtl.options.Viewer.view
++import firrtl.options._
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.util.HasRocketChipStageUtils
++
++/** Writes FIRRTL annotations into a file */
++class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val targetDir = view[StageOptions](annotations).targetDir
++    val fileName = s"${view[RocketChipOptions](annotations).longName.get}.anno.json"
++
++    val annos = annotations.view.flatMap {
++      // Remove TargetDirAnnotation so that we can pass as argument to FIRRTL
++      // Remove CustomFileEmission, those are serialized automatically by Stages
++      case (_: Unserializable | _: TargetDirAnnotation | _: CustomFileEmission) =>
++        None
++      case DeletedAnnotation(_, (_: Unserializable | _: CustomFileEmission)) =>
++        None
++      case a =>
++        Some(a)
++    }
++
++    writeOutputFile(targetDir, fileName, JsonProtocol.serialize(annos.toSeq))
++
++    annotations
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/GenerateROMs.scala b/src/main/scala/stage/phases/GenerateROMs.scala
+new file mode 100644
+index 000000000..b13f7077f
+--- /dev/null
++++ b/src/main/scala/stage/phases/GenerateROMs.scala
+@@ -0,0 +1,31 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import chisel3.stage.ChiselCircuitAnnotation
++import chisel3.stage.phases.{Convert, Elaborate}
++import firrtl.AnnotationSeq
++import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
++import firrtl.options.Viewer.view
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.util.HasRocketChipStageUtils
++
++/** Dumps ROM information into a file */
++class GenerateROMs extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[Checks], Dependency[Elaborate])
++  override val dependents = Seq(Dependency[Convert])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val targetDir = view[StageOptions](annotations).targetDir
++    val fileName = s"${view[RocketChipOptions](annotations).longName.get}.rom.conf"
++
++    annotations.flatMap {
++      case a: ChiselCircuitAnnotation =>
++        writeOutputFile(targetDir, fileName, enumerateROMs(a.circuit))
++        Some(a)
++      case a => Some(a)
++    }
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/GenerateTestSuiteMakefrags.scala b/src/main/scala/stage/phases/GenerateTestSuiteMakefrags.scala
+new file mode 100644
+index 000000000..0c9b00f67
+--- /dev/null
++++ b/src/main/scala/stage/phases/GenerateTestSuiteMakefrags.scala
+@@ -0,0 +1,32 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import firrtl.AnnotationSeq
++import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
++import firrtl.options.Viewer.view
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.system.TestGeneration
++import freechips.rocketchip.util.HasRocketChipStageUtils
++
++/** Generates a make script to run tests in [[RocketTestSuiteAnnotation]]. */
++class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    val targetDir = view[StageOptions](annotations).targetDir
++    val fileName = s"${view[RocketChipOptions](annotations).longName.get}.d"
++
++    annotations.flatMap {
++      case a: RocketTestSuiteAnnotation =>
++        val makefrag = a.tests.groupBy(_.kind)
++          .map { case (kind, s) => TestGeneration.gen(kind, s) }
++          .mkString("\n")
++        writeOutputFile(targetDir, fileName, makefrag)
++        Some(a)
++      case a => Some(a)
++    }
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/PreElaboration.scala b/src/main/scala/stage/phases/PreElaboration.scala
+new file mode 100644
+index 000000000..c307390c2
+--- /dev/null
++++ b/src/main/scala/stage/phases/PreElaboration.scala
+@@ -0,0 +1,44 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import chisel3.RawModule
++import chisel3.stage.ChiselGeneratorAnnotation
++import firrtl.AnnotationSeq
++import firrtl.options.Viewer.view
++import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
++import org.chipsalliance.cde.config.{Field, Parameters}
++import freechips.rocketchip.diplomacy._
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.util.HasRocketChipStageUtils
++
++case object TargetDirKey extends Field[String](".")
++
++/** Constructs a generator function that returns a top module with given config parameters */
++class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[Checks])
++  override val dependents = Seq(Dependency[chisel3.stage.phases.Elaborate])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++
++    val stageOpts = view[StageOptions](annotations)
++    val rOpts = view[RocketChipOptions](annotations)
++    val topMod = rOpts.topModule.get
++
++    val config = getConfig(rOpts.configNames.get).alterPartial {
++      case TargetDirKey => stageOpts.targetDir
++    }
++
++    val gen = () =>
++      topMod
++        .getConstructor(classOf[Parameters])
++        .newInstance(config) match {
++          case a: RawModule => a
++          case a: LazyModule => LazyModule(a).module
++        }
++
++    ChiselGeneratorAnnotation(gen) +: annotations
++  }
++
++}
+diff --git a/src/main/scala/stage/phases/TransformAnnotations.scala b/src/main/scala/stage/phases/TransformAnnotations.scala
+new file mode 100644
+index 000000000..6be243492
+--- /dev/null
++++ b/src/main/scala/stage/phases/TransformAnnotations.scala
+@@ -0,0 +1,22 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.stage.phases
++
++import chisel3.stage.ChiselOutputFileAnnotation
++import firrtl.AnnotationSeq
++import firrtl.options.Viewer.view
++import firrtl.options.{Dependency, Phase, PreservesAll}
++import freechips.rocketchip.stage.RocketChipOptions
++import freechips.rocketchip.util.HasRocketChipStageUtils
++
++/** Transforms RocketChipAnnotations into those used by other stages */
++class TransformAnnotations extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
++
++  override val prerequisites = Seq(Dependency[Checks])
++  override val dependents = Seq(Dependency[chisel3.stage.phases.AddImplicitOutputFile])
++
++  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
++    /** Construct output file annotation for emission */
++    new ChiselOutputFileAnnotation(view[RocketChipOptions](annotations).longName.get) +: annotations
++  }
++}
+diff --git a/src/main/scala/system/RocketChipStageGenerator.scala b/src/main/scala/system/RocketChipStageGenerator.scala
+new file mode 100644
+index 000000000..a85edada3
+--- /dev/null
++++ b/src/main/scala/system/RocketChipStageGenerator.scala
+@@ -0,0 +1,48 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.system
++
++import chisel3.stage.{ChiselCli, ChiselStage}
++import firrtl.AnnotationSeq
++import firrtl.options.PhaseManager.PhaseDependency
++import firrtl.options.{Dependency, Phase, PhaseManager, PreservesAll, Shell, Stage, StageMain}
++import firrtl.stage.FirrtlCli
++import freechips.rocketchip.stage.RocketChipCli
++
++/** Modified ChiselStage that includes the GenerateROMs phase */
++private[freechips] final class RocketChiselStage extends ChiselStage {
++
++  override val targets = Seq(
++    Dependency[chisel3.stage.phases.Checks],
++    Dependency[chisel3.stage.phases.Elaborate],
++    Dependency[freechips.rocketchip.stage.phases.GenerateROMs],
++    Dependency[chisel3.stage.phases.AddImplicitOutputFile],
++    Dependency[chisel3.stage.phases.AddImplicitOutputAnnotationFile],
++    Dependency[chisel3.stage.phases.MaybeAspectPhase],
++    Dependency[chisel3.stage.phases.Emitter],
++    Dependency[chisel3.stage.phases.Convert]
++  )
++
++}
++
++class RocketChipStage extends Stage with PreservesAll[Phase] {
++
++  override val shell = new Shell("rocket-chip") with RocketChipCli with ChiselCli with FirrtlCli
++  val targets: Seq[PhaseDependency] = Seq(
++    Dependency[freechips.rocketchip.stage.phases.Checks],
++    Dependency[freechips.rocketchip.stage.phases.TransformAnnotations],
++    Dependency[freechips.rocketchip.stage.phases.PreElaboration],
++    Dependency[RocketChiselStage],
++    Dependency[freechips.rocketchip.stage.phases.GenerateFirrtlAnnos],
++    Dependency[freechips.rocketchip.stage.phases.AddDefaultTests],
++    Dependency[freechips.rocketchip.stage.phases.GenerateTestSuiteMakefrags],
++    Dependency[freechips.rocketchip.stage.phases.GenerateArtefacts]
++  )
++
++  private val pm = new PhaseManager(targets)
++
++  override def run(annotations: AnnotationSeq): AnnotationSeq = pm.transform(annotations)
++
++}
++
++object Generator extends StageMain(new RocketChipStage)
+diff --git a/src/main/scala/transforms/naming/RenameDesiredNames.scala b/src/main/scala/transforms/naming/RenameDesiredNames.scala
+new file mode 100644
+index 000000000..8e58e9196
+--- /dev/null
++++ b/src/main/scala/transforms/naming/RenameDesiredNames.scala
+@@ -0,0 +1,131 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.transforms.naming
++
++import firrtl._
++import firrtl.annotations.{CircuitTarget, IsModule, SingleTargetAnnotation, Target}
++import firrtl.ir._
++import firrtl.options.Dependency
++import firrtl.transforms.DedupModules
++
++import freechips.rocketchip.linting.rule.DesiredNameAnnotation
++
++import scala.collection.mutable
++
++/** A helper to rename modules in a [[Circuit]]
++  */
++object RenameModules {
++  def onStmt(moduleNameMap: Map[String, String])(stmt: Statement): Statement = stmt match {
++    case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
++    case inst: DefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
++    case other => other.mapStmt(onStmt(moduleNameMap))
++  }
++
++  /** Renames the modules in a circuit given a mapping of old names to new names
++    *
++    * @param nameMappings mapping of old to new names
++    * @param circuit the circuit to rename
++    */
++  def apply(nameMappings: Map[String, String], circuit: Circuit): Circuit = {
++    val modules = circuit.modules.map {
++      case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(m => nameMappings.getOrElse(m, m))
++      case ext: ExtModule => ext
++    }
++    val main = nameMappings.getOrElse(circuit.main, circuit.main)
++    circuit.copy(main = main, modules = modules)
++  }
++}
++
++/** Specifies the desired name to rename the module to, overriding the Module.desiredName
++  */
++case class OverrideDesiredNameAnnotation(
++  desiredName: String,
++  target: IsModule
++) extends SingleTargetAnnotation[IsModule] {
++  def duplicate(newTarget: IsModule): OverrideDesiredNameAnnotation = {
++    this.copy(target = newTarget)
++  }
++}
++
++/** Renames modules based on their overridden desired names
++  *
++  * Desired module name overrides are specified by
++  * [[OverrideDesiredNameAnnotation]].
++  */
++class RenameDesiredNames extends Transform with DependencyAPIMigration {
++
++  override def prerequisites = Seq(Dependency[DedupModules])
++  override def optionalPrerequisiteOf = Seq(Dependency[VerilogEmitter])
++
++  override def invalidates(transform: Transform) = false
++
++  def execute(state: CircuitState): CircuitState = {
++    val modMap = state.circuit.modules.collect {
++      case m: Module => m.name -> m
++    }.toMap
++
++    val overrideDesiredNameAnnos = state.annotations.collect {
++      case a: OverrideDesiredNameAnnotation if a.target.circuit == state.circuit.main => a
++    }
++
++    val moduleToDesiredName: mutable.Map[String, mutable.Set[String]] = mutable.Map()
++
++    val nameMap = overrideDesiredNameAnnos.groupBy(_.desiredName).mapValues { annos =>
++      annos.map(a => Target.referringModule(a.target).module).distinct.map { referringModule =>
++        require(modMap.contains(referringModule), "ModuleNameAnnotations may not refer to blackboxes")
++        val desiredNames = moduleToDesiredName.getOrElseUpdate(referringModule, mutable.Set())
++        desiredNames += annos.head.desiredName
++        modMap(referringModule)
++      }
++    }
++
++    val conflictingDesiredNames = moduleToDesiredName.collect {
++      case kv@ (moduleName, desiredName) if desiredName.size > 1 => kv
++    }
++
++    require(conflictingDesiredNames.size == 0, {
++      val explanation = conflictingDesiredNames.map {
++        case (modName, desiredNames) => s"  ${modName}: ${desiredNames.mkString(", ")}"
++      }.mkString("\n")
++      s"Modules may not have more than one desiredName:\n${explanation}"
++    })
++
++    val renamedDesiredNames = mutable.Set[String]()
++    val nameMappings = nameMap.flatMap { case (desiredName, modules) =>
++      if (modules.size == 1) {
++        renamedDesiredNames += desiredName
++        Some(modules.head.name -> desiredName)
++      } else {
++        None
++      }
++    }.toMap
++
++    val finalNames = state.circuit.modules.map {
++      case m: Module if nameMappings.contains(m.name) => nameMappings(m.name)
++      case m: DefModule => m.name
++    }
++    val renameConflicts = finalNames.groupBy(identity).collect {
++      case (_, conflicts) if conflicts.size > 1 => conflicts.head
++    }
++    require(renameConflicts.size == 0, s"desired names conflict with pre-existing module names: ${renameConflicts.mkString(", ")}")
++
++    val circuit = RenameModules(nameMappings, state.circuit)
++
++    val newMain = CircuitTarget(circuit.main)
++    val oldMain = CircuitTarget(state.circuit.main)
++    val renames = RenameMap()
++    nameMappings.foreach { case (from, to) =>
++      renames.record(oldMain.module(from), newMain.module(to))
++    }
++
++    // delete override annotations and rename desired name annotations for ones that were renamed
++    val newAnnos = state.annotations.flatMap {
++      case a: OverrideDesiredNameAnnotation if renamedDesiredNames(a.desiredName) => None
++      case a: DesiredNameAnnotation if nameMappings.contains(Target.referringModule(a.target).module) =>
++        Some(a.copy(desiredName = nameMappings(Target.referringModule(a.target).module)))
++      case a => Some(a)
++    }
++
++    state.copy(circuit = circuit, annotations = newAnnos, renames = Some(renames))
++  }
++}
+diff --git a/src/main/scala/unittest/Generator.scala b/src/main/scala/unittest/Generator.scala
+new file mode 100644
+index 000000000..01ef16886
+--- /dev/null
++++ b/src/main/scala/unittest/Generator.scala
+@@ -0,0 +1,8 @@
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.unittest
++
++import firrtl.options.StageMain
++import freechips.rocketchip.system.RocketChipStage
++
++object Generator extends StageMain(new RocketChipStage)
+diff --git a/src/test/scala/generatorTests/StageGeneratorSpec.scala b/src/test/scala/generatorTests/StageGeneratorSpec.scala
+new file mode 100644
+index 000000000..00ab717a2
+--- /dev/null
++++ b/src/test/scala/generatorTests/StageGeneratorSpec.scala
+@@ -0,0 +1,44 @@
++// See LICENSE.SiFive for license details.
++
++package generatorTests
++
++import java.io.File
++
++import chisel3.aop.injecting.InjectingAspect
++import chisel3._
++import firrtl.options.TargetDirAnnotation
++import freechips.rocketchip.stage.{ConfigsAnnotation, TopModuleAnnotation}
++import freechips.rocketchip.system.{RocketChipStage, TestHarness}
++import org.scalatest.flatspec.AnyFlatSpec
++
++/** run via SBT with
++ *    > testOnly generatorTests.StageGeneratorSpec
++ *
++ *  Output can be viewed in the testbuild directory. The wire named "hello" should show up in the generated
++ *  *.anno.json file.
++ */
++class StageGeneratorSpec extends AnyFlatSpec {
++
++  val dummyAspect = InjectingAspect(
++    {dut: TestHarness => Seq(dut.dut)},
++    {dut: freechips.rocketchip.system.ExampleRocketSystemModuleImp[freechips.rocketchip.system.ExampleRocketSystem] =>
++      val dummyWire = Wire(UInt(3.W)).suggestName("hello")
++      dummyWire := 5.U
++      dontTouch(dummyWire)
++    }
++  )
++
++  "Test" should "pass" in {
++    val dirName = System.getProperty("user.dir") + "/testbuild"
++    val dir = new File(dirName)
++    if (!dir.exists()) dir.mkdirs()
++
++    new RocketChipStage().run(Seq(
++      new TargetDirAnnotation(dirName),
++      new TopModuleAnnotation(Class.forName("freechips.rocketchip.system.TestHarness")),
++      new ConfigsAnnotation(Seq("freechips.rocketchip.system.DefaultConfig")),
++      dummyAspect
++    ))
++  }
++
++}
+diff --git a/src/test/scala/linting/rule/LintConflictingModuleNamesSpec.scala b/src/test/scala/linting/rule/LintConflictingModuleNamesSpec.scala
+new file mode 100644
+index 000000000..affad0ad1
+--- /dev/null
++++ b/src/test/scala/linting/rule/LintConflictingModuleNamesSpec.scala
+@@ -0,0 +1,112 @@
++// See LICENSE for license details.
++
++package freechips.rocketchip.linting.rule
++
++import firrtl._
++import firrtl.annotations._
++import org.scalatest.matchers.should.Matchers
++import org.scalatest.propspec.AnyPropSpec
++
++import freechips.rocketchip.linting.Violation
++import freechips.rocketchip.transforms.naming.{OverrideDesiredNameAnnotation, RenameDesiredNames}
++
++class LintConflictingModuleNamesSpec extends AnyPropSpec with Matchers {
++  val transform = new LintConflictingModuleNames
++  def lint(input: String, annos: Seq[Annotation]): CircuitState = {
++    val state = CircuitState(Parser.parse(input), UnknownForm, annos)
++    transform.runTransform(state)
++  }
++
++  def lint(state: CircuitState): CircuitState = {
++    transform.runTransform(state)
++  }
++
++  val renameTransform = new RenameDesiredNames
++
++  def rename(input: String, annos: Seq[Annotation]): CircuitState = {
++    val state = CircuitState(Parser.parse(input), UnknownForm, annos)
++    renameTransform.runTransform(state)
++  }
++
++  property("It should emit LintViolations for conflicting DesiredNameAnnotations") {
++    val top = CircuitTarget("Foo")
++    val input =
++      """|circuit Foo:
++         |  module Bar_1:
++         |    output in1: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_3:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |    output in3: UInt<1>
++         |  module Foo:
++         |    inst bar_1 of Bar_1
++         |    inst bar_2 of Bar_2
++         |    inst bar_3 of Bar_3
++         |""".stripMargin
++    val annos = Seq(
++      DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
++      DesiredNameAnnotation("Bar_1", top.module("Bar_2"))
++    )
++    val conflictingModules = lint(input, annos).annotations.collect {
++      case Violation(_: LintConflictingModuleNames, _, _, mods) => mods
++    }
++    conflictingModules should be (Seq(Set("Bar_1", "Bar_2")))
++  }
++
++  property("It should catch LintViolations not fixed by with RenameDesiredNames") {
++    val top = CircuitTarget("Foo")
++    val input =
++      """|circuit Foo:
++         |  module Bar_1:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<2>
++         |    output in2: UInt<2>
++         |  module Foo:
++         |    inst bar_1 of Bar_1
++         |    inst bar_2 of Bar_2
++         |""".stripMargin
++    val annos = Seq(
++      DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
++      DesiredNameAnnotation("Bar_1", top.module("Bar_2")),
++      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_1")),
++      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2"))
++    )
++
++    val conflictingModules = lint(rename(input, annos)).annotations.collect {
++      case Violation(_: LintConflictingModuleNames, _, _, mods) => mods
++    }
++    conflictingModules should be (Seq(Set("Bar_1", "Bar_2")))
++  }
++
++  property("RenameDesiredNames should be able to fix LintViolations") {
++    val top = CircuitTarget("Foo")
++    val input =
++      """|circuit Foo:
++         |  module Bar_1:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<2>
++         |    output in2: UInt<2>
++         |  module Foo:
++         |    inst bar_1 of Bar_1
++         |    inst bar_2 of Bar_2
++         |""".stripMargin
++    val annos = Seq(
++      DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
++      DesiredNameAnnotation("Bar_1", top.module("Bar_2")),
++      OverrideDesiredNameAnnotation("BarWith2BoolInputs", top.module("Bar_1")),
++      OverrideDesiredNameAnnotation("BarWith2UIntInputs", top.module("Bar_2"))
++    )
++
++    val conflictingModules = lint(rename(input, annos)).annotations.collect {
++      case Violation(_: LintConflictingModuleNames, _, _, mods) => mods
++    }
++    conflictingModules should be (Seq())
++  }
++}
+diff --git a/src/test/scala/transforms/naming/RenameDesiredNamesSpec.scala b/src/test/scala/transforms/naming/RenameDesiredNamesSpec.scala
+new file mode 100644
+index 000000000..0846282e4
+--- /dev/null
++++ b/src/test/scala/transforms/naming/RenameDesiredNamesSpec.scala
+@@ -0,0 +1,192 @@
++// See LICENSE for license details.
++
++package freechips.rocketchip.transforms.naming
++
++import firrtl._
++import firrtl.annotations._
++import org.scalatest.matchers.should.Matchers
++import org.scalatest.propspec.AnyPropSpec
++
++import freechips.rocketchip.linting.rule.DesiredNameAnnotation
++
++case class StableNameAnnotation(target: IsModule) extends SingleTargetAnnotation[IsModule] {
++  def duplicate(newTarget: IsModule): StableNameAnnotation = this.copy(target = newTarget)
++}
++
++case class UnstableNameAnnotation(target: IsModule) extends SingleTargetAnnotation[IsModule] {
++  def duplicate(newTarget: IsModule): UnstableNameAnnotation = this.copy(target = newTarget)
++}
++
++class RenameDesiredNamesSpec extends AnyPropSpec with Matchers {
++  val transform = new RenameDesiredNames
++
++  case class TestCase(
++    input: String,
++    annos: Seq[Annotation]
++  )
++
++  def renameNames(testCase: TestCase): CircuitState = {
++    renameNames(CircuitState(Parser.parse(testCase.input), UnknownForm, testCase.annos))
++  }
++
++  def renameNames(state: CircuitState): CircuitState = {
++    transform.runTransform(state)
++  }
++
++  def test(testCases: TestCase *): Unit = {
++    val firstState = renameNames(testCases.head)
++    val firstUnstableNames = firstState.annotations.collect {
++      case a: UnstableNameAnnotation => a
++    }
++    val firstStableNames = firstState.annotations.collect {
++      case a: StableNameAnnotation => a
++    }
++
++    testCases.tail.foldLeft(firstStableNames, firstUnstableNames) {
++      case ((stable, unstable), testCase) =>
++        val state = renameNames(testCase)
++        val currUnstableNames = state.annotations.collect {
++          case a: UnstableNameAnnotation => a
++        }
++        val currStableNames = state.annotations.collect {
++          case a: StableNameAnnotation => a
++        }
++
++        currStableNames should be (stable)
++        currUnstableNames should not be (unstable)
++        (currStableNames, currUnstableNames)
++    }
++  }
++
++  property("It should rename modules if it can and ignore strategies which fail to result in unique names") {
++    val top = CircuitTarget("Foo")
++    val testCase = TestCase(
++      """|circuit Foo:
++         |  module Bar_1:
++         |    output in1: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_3:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Foo:
++         |    inst bar_1 of Bar_1
++         |    inst bar_2 of Bar_2
++         |    inst bar_3 of Bar_3
++         |""".stripMargin,
++      Seq(
++        DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
++        OverrideDesiredNameAnnotation("BarWith1Input", top.module("Bar_1")),
++
++        // these renames should fail (be ignored) because the ExactNamingStrategy fails to result in unique names.
++        OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
++        OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
++      )
++    )
++    val outputState = renameNames(testCase)
++    val check =
++      """|circuit Foo:
++         |  module BarWith1Input:
++         |    output in1: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_3:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Foo:
++         |    inst bar_1 of BarWith1Input
++         |    inst bar_2 of Bar_2
++         |    inst bar_3 of Bar_3
++         |""".stripMargin
++
++    outputState.circuit should be (Parser.parse(check))
++
++    // it should also update DesiredNameAnnotation and delete successfull OverrideDesiredNameAnnotation
++    // Unsuccessful OverrideDesiredNameAnnotations should remain
++    outputState.annotations.filterNot(_.isInstanceOf[DeletedAnnotation]) should be (Seq(
++      DesiredNameAnnotation("BarWith1Input", top.module("BarWith1Input")),
++      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
++      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
++    ))
++  }
++
++  property("It should keep modules names stable between runs") {
++    val top = CircuitTarget("Foo")
++    test(
++      TestCase(
++        """|circuit Foo:
++           |  module Bar_1:
++           |    output in1: UInt<1>
++           |  module Bar_2:
++           |    output in1: UInt<1>
++           |    output in2: UInt<1>
++           |  module Bar_3:
++           |    output in1: UInt<1>
++           |    output in2: UInt<1>
++           |    output in3: UInt<1>
++           |  module Foo:
++           |    inst bar_1 of Bar_1
++           |    inst bar_2 of Bar_2
++           |    inst bar_3 of Bar_3
++           |""".stripMargin,
++        Seq(
++          UnstableNameAnnotation(top.module("Bar_1")),
++          StableNameAnnotation(top.module("Bar_2")),
++          StableNameAnnotation(top.module("Bar_3")),
++          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_2")),
++          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_3"))
++        )
++      ),
++      TestCase(
++        """|circuit Foo:
++           |  module Bar_1:
++           |    output in1: UInt<2>
++           |  module Bar_5:
++           |    output in1: UInt<1>
++           |    output in2: UInt<1>
++           |  module Bar_6:
++           |    output in1: UInt<1>
++           |    output in2: UInt<1>
++           |    output in3: UInt<1>
++           |  module Foo:
++           |    inst bar_1 of Bar_1
++           |    inst bar_5 of Bar_5
++           |    inst bar_6 of Bar_6
++           |""".stripMargin,
++        Seq(
++          UnstableNameAnnotation(top.module("Bar_1")),
++          StableNameAnnotation(top.module("Bar_5")),
++          StableNameAnnotation(top.module("Bar_6")),
++          OverrideDesiredNameAnnotation("Bar_4", top.module("Bar_1")),
++          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_5")),
++          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_6"))
++        )
++      )
++    )
++  }
++
++  property("It should error if renaming to an already existing module name") {
++    val top = CircuitTarget("Foo")
++    val testCase = TestCase(
++      """|circuit Foo:
++         |  module Bar_1:
++         |    output in1: UInt<1>
++         |  module Bar_2:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |  module Bar_3:
++         |    output in1: UInt<1>
++         |    output in2: UInt<1>
++         |    output in3: UInt<1>
++         |  module Foo:
++         |    inst bar_1 of Bar_1
++         |    inst bar_2 of Bar_2
++         |    inst bar_3 of Bar_3
++         |""".stripMargin,
++      Seq(OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_2")))
++    )
++    an [Exception] should be thrownBy renameNames(testCase)
++  }
++}
