@@ -77,3 +77,18 @@
 	url = git@github.com:ucb-bar/mempress.git
 [submodule "dependencies/rocket-chip"]
 	branch = dev
+[submodule "dependencies/dsptools"]
+	path = dependencies/dsptools
+	url = git@github.com:ucb-bar/dsptools.git
+[submodule "dependencies/fft-generator"]
+	path = dependencies/fft-generator
+	url = git@github.com:ucb-bar/FFTGenerator.git
+[submodule "dependencies/rocket-dsp-utils"]
+	path = dependencies/rocket-dsp-utils
+	url = git@github.com:ucb-bar/rocket-dsp-utils.git
+[submodule "dependencies/bar-fetchers"]
+	path = dependencies/bar-fetchers
+	url = git@github.com:ucb-bar/bar-fetchers.git
+[submodule "dependencies/shuttle"]
+	path = dependencies/shuttle
+	url = git@github.com:ucb-bar/shuttle.git

@@ -30,6 +30,7 @@ object ivys {
   val playjson =ivy"com.typesafe.play::play-json:2.9.4"
   val breeze = ivy"org.scalanlp::breeze:1.1"
   val parallel = ivy"org.scala-lang.modules:scala-parallel-collections_3:1.0.4"
+  val spire = ivy"org.typelevel::spire:0.17.0"
 }
 
 // For modules not support mill yet, need to have a ScalaModule depend on our own repositories.
@@ -284,11 +285,54 @@ object ibex extends CommonModule with SbtModule {
   override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
 }
 
+object dsptools extends CommonModule with SbtModule {
+  override def millSourcePath = os.pwd / "dependencies" / "dsptools"
+
+  override def ivyDeps = Agg(
+    ivys.spire,
+    ivys.breeze
+  )
+}
+
+object dsputils extends CommonModule with SbtModule {
+  override def millSourcePath = os.pwd / "dependencies" / "rocket-dsp-utils"
+
+  override def ivyDeps = Agg(
+    ivys.spire,
+    ivys.breeze
+  )
+
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, dsptools)
+}
+
+object fftgenerator extends CommonModule with SbtModule {
+  override def millSourcePath = os.pwd / "dependencies" / "fft-generator"
+
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, dsputils)
+}
+
+object barf extends CommonModule with SbtModule {
+  override def millSourcePath = os.pwd / "dependencies" / "bar-fetchers"
+
+  override def ivyDeps = Agg(
+    ivys.spire,
+    ivys.breeze
+  )
+
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
+}
+
+object shuttle extends CommonModule with SbtModule {
+  override def millSourcePath = os.pwd / "dependencies" / "shuttle"
+
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
+}
+
 // I know it's quite strange, however UCB messly managed their dependency...
 object chipyard extends CommonModule with SbtModule { cy =>
   def basePath = os.pwd / "dependencies" / "chipyard"
   override def millSourcePath = basePath / "generators" / "chipyard"
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, barstools, testchipip, blocks, icenet, boom, gemmini, nvdla, hwacha, cva6, tracegen, sodor, sha3, ibex, constellation, mempress)
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, barstools, testchipip, blocks, icenet, boom, gemmini, nvdla, hwacha, cva6, tracegen, sodor, sha3, ibex, constellation, mempress, fftgenerator, barf, shuttle)
 
   object tracegen extends CommonModule with SbtModule {
     override def millSourcePath = basePath / "generators" / "tracegen"
