@@ -31,6 +31,7 @@ object ivys {
   val breeze = ivy"org.scalanlp::breeze:1.1"
   val parallel = ivy"org.scala-lang.modules:scala-parallel-collections_3:1.0.4"
   val spire = ivy"org.typelevel::spire:0.17.0"
+  val mainargs = ivy"com.lihaoyi::mainargs:0.4.0"
 }
 
 // For modules not support mill yet, need to have a ScalaModule depend on our own repositories.
@@ -353,15 +354,47 @@ object chipyard extends CommonModule with SbtModule { cy =>
 // Dummy
 
 object playground extends CommonModule {
-  override def moduleDeps = super.moduleDeps ++ Seq(chipyard.firechip, firesim, firesim.midas)
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, barstools, icenet, firesim, chipyard.tracegen)
 
   // add some scala ivy module you like here.
   override def ivyDeps = Agg(
     ivys.oslib,
-    ivys.pprint
+    ivys.pprint,
+    ivys.mainargs
   )
 
-  def generator(args: String*) = runMain("chipyard.Generator", args: _*)
+  def module: String = "playground.harness.FireSim"
 
-  def goldengate(args: String*) = runMain("midas.stage.GoldenGateMain", args: _*)
+  def configs: String = "playground.PlaygroundConfig"
+
+  def elaborate = T {
+    mill.modules.Jvm.runSubprocess(
+      finalMainClass(),
+      runClasspath().map(_.path),
+      forkArgs(),
+      forkEnv(),
+      Seq(
+        "--dir", T.dest.toString,
+        "--m", module,
+        "--configs", configs
+      ),
+      workingDir = os.pwd,
+    )
+    PathRef(T.dest)
+  }
+
+  def verilog = T {
+    os.proc("firtool",
+      elaborate().path / s"${module.split('.').last}.fir",
+      "--disable-annotation-unknown",
+      "-dedup",
+      "-O=debug",
+      "--split-verilog",
+      "--preserve-values=named",
+      "--output-annotation-file=mfc.anno.json",
+      s"-o=${T.dest}"
+    ).call(T.dest)
+    PathRef(T.dest)
+  }
+
 }
