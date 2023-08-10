@@ -354,7 +354,7 @@ object chipyard extends CommonModule with SbtModule { cy =>
 // Dummy
 
 object playground extends CommonModule {
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, barstools, icenet, firesim, chipyard.tracegen)
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, barstools, icenet, firesim)
 
   // add some scala ivy module you like here.
   override def ivyDeps = Agg(
@@ -365,7 +365,7 @@ object playground extends CommonModule {
 
   def module: String = "playground.harness.FireSim"
 
-  def configs: String = "playground.PlaygroundConfig"
+  def configs: String = "playground.harness.FireSimRocket4GiBDRAMConfig"
 
   def elaborate = T {
     mill.modules.Jvm.runSubprocess(

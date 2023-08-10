@@ -15,7 +15,6 @@ import playground.HasChipyardPRCI
 import playground.clocking.ClockWithFreq
 import playground.iobinders.GetSystemParameters
 import testchipip.{BlockDeviceIO, BlockDeviceModel, CanHavePeripheryBlockDevice, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, SerialIO, SerialTLKey, SerialWidthAdapter, SimBlockDevice, SimDromajoBridge, SimSPIFlashModel, SimTSI, TSI, TSIHarness, TraceOutputTop, UARTAdapter, UARTToSerial}
-import tracegen.TraceGenSystemModuleImp
 
 import scala.reflect.ClassTag
 
@@ -194,20 +193,6 @@ class WithUARTSerial extends OverrideHarnessBinder({
     })
   }
 })
-
-
-class WithTraceGenSuccess extends OverrideHarnessBinder({
-  (system: TraceGenSystemModuleImp, th: HasHarnessInstantiators, ports: Seq[Bool]) => {
-    ports.map { p => when (p) { th.success := true.B } }
-  }
-})
-
-class WithSimDromajoBridge extends ComposeHarnessBinder({
-  (system: CanHaveTraceIOModuleImp, th: HasHarnessInstantiators, ports: Seq[TraceOutputTop]) => {
-    ports.map { p => p.traces.map(tileTrace => SimDromajoBridge(tileTrace)(system.p)) }
-  }
-})
-
 class WithClockAndResetFromHarness extends OverrideHarnessBinder({
   (system: HasChipyardPRCI, th: HasHarnessInstantiators, ports: Seq[Data]) => {
     implicit val p = GetSystemParameters(system)

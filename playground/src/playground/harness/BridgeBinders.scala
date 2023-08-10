@@ -19,7 +19,6 @@ import org.chipsalliance.cde.config.{Config, Parameters}
 import playground.iobinders.{ComposeIOBinder, GetSystemParameters, IOCellKey}
 import sifive.blocks.devices.uart._
 import testchipip._
-import tracegen.TraceGenSystemModuleImp
 
 object MainMemoryConsts {
   val regionNamePrefix = "MainMemory"
@@ -169,13 +168,6 @@ class WithDromajoBridge extends ComposeHarnessBinder({
   (system: CanHaveTraceIOModuleImp, th: FireSim, ports: Seq[TraceOutputTop]) =>
     ports.map { p => p.traces.map(tileTrace => DromajoBridge(tileTrace)(system.p)) }; Nil
 })
-
-
-class WithTraceGenBridge extends OverrideHarnessBinder({
-  (system: TraceGenSystemModuleImp, th: FireSim, ports: Seq[Bool]) =>
-    ports.map { p => GroundTestBridge(th.harnessBinderClock, p)(system.p) }; Nil
-})
-
 class WithFireSimMultiCycleRegfile extends ComposeIOBinder({
   (system: HasTilesModuleImp) => {
     system.outer.tiles.map {
