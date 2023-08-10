@@ -74,7 +74,7 @@ class FireSim(implicit val p: Parameters) extends RawModule with HasHarnessInsta
   override val supportsMultiChip = true
 
   // TODO: ChipTop
-  // instantiateChipTops()
+  instantiateChipTops()
 
   // Ensures FireSim-synthesized assertions and instrumentation is disabled
   // while resetBridge.io.reset is asserted.  This ensures assertions do not fire at

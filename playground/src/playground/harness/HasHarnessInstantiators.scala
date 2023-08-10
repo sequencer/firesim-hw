@@ -1,15 +1,11 @@
 package playground.harness
 
 import chisel3._
-
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap}
 import freechips.rocketchip.diplomacy.LazyModule
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
 import freechips.rocketchip.util.ResetCatchAndSync
-import freechips.rocketchip.prci.{ClockBundle, ClockBundleParameters, ClockParameters, ClockSinkParameters}
 import freechips.rocketchip.stage.phases.TargetDirKey
-import freechips.rocketchip.subsystem.RocketSubsystem
-import freechips.rocketchip.system.ExampleRocketSystem
+import playground.ChipTop
 import playground.iobinders.HasIOBinders
 
 // -------------------------------
@@ -36,7 +32,7 @@ class WithHarnessBinderClockFreqMHz(freqMHz: Double) extends Config((site, here,
   case HarnessBinderClockFrequencyKey => freqMHz
 })
 
-case object BuildTop extends Field[Parameters => LazyModule]((p: Parameters) => new ExampleRocketSystem()(p))
+case object BuildTop extends Field[Parameters => LazyModule]((p: Parameters) => new ChipTop()(p))
 
 // A TestHarness mixing this in will
 // - use the HarnessClockInstantiator clock provide

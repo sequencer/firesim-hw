@@ -3,14 +3,16 @@ package playground.harness
 import chisel3._
 import chisel3.experimental.{Analog, BaseModule}
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
-import freechips.rocketchip.diplomacy.{LazyModule}
-import freechips.rocketchip.amba.axi4.{AXI4Bundle}
+import freechips.rocketchip.diplomacy.LazyModule
+import freechips.rocketchip.amba.axi4.AXI4Bundle
 import freechips.rocketchip.system.SimAXIMem
 import freechips.rocketchip.subsystem._
 import sifive.blocks.devices.gpio._
 import sifive.blocks.devices.uart._
 import barstools.iocell.chisel._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly, NICKey, NicLoopback, SimNetwork}
+import playground.HasChipyardPRCI
+import playground.clocking.ClockWithFreq
 import playground.iobinders.GetSystemParameters
 import testchipip.{BlockDeviceIO, BlockDeviceModel, CanHavePeripheryBlockDevice, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, SerialIO, SerialTLKey, SerialWidthAdapter, SimBlockDevice, SimDromajoBridge, SimSPIFlashModel, SimTSI, TSI, TSIHarness, TraceOutputTop, UARTAdapter, UARTToSerial}
 import tracegen.TraceGenSystemModuleImp
@@ -203,5 +205,19 @@ class WithTraceGenSuccess extends OverrideHarnessBinder({
 class WithSimDromajoBridge extends ComposeHarnessBinder({
   (system: CanHaveTraceIOModuleImp, th: HasHarnessInstantiators, ports: Seq[TraceOutputTop]) => {
     ports.map { p => p.traces.map(tileTrace => SimDromajoBridge(tileTrace)(system.p)) }
+  }
+})
+
+class WithClockAndResetFromHarness extends OverrideHarnessBinder({
+  (system: HasChipyardPRCI, th: HasHarnessInstantiators, ports: Seq[Data]) => {
+    implicit val p = GetSystemParameters(system)
+    val clocks = ports.collect { case c: ClockWithFreq => c }
+    ports.map ({
+      case c: ClockWithFreq => {
+        val clock = th.harnessClockInstantiator.requestClockMHz(s"clock_${c.freqMHz.toInt}MHz", c.freqMHz)
+        c.clock := clock
+      }
+      case r: AsyncReset => r := th.harnessBinderReset.asAsyncReset
+    })
   }
 })

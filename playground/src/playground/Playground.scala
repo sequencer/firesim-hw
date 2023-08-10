@@ -1,7 +1,9 @@
 package playground
 
+import firesim.configs.WithDefaultMemModel
 import org.chipsalliance.cde.config.Config
-import playground.harness.WithFireSimHarnessClockBridgeInstantiator
+import playground.harness.{WithDefaultFireSimBridges, WithFireSimHarnessClockBridgeInstantiator}
+
 class TestConfig
     extends Config((site, here, up) => {
       case freechips.rocketchip.util.ClockGateModelFile => Some("./dependencies/rocket-chip/src/main/resources/vsrc/EICG_wrapper.v")
@@ -12,7 +14,7 @@ class TestConfig
 
 class PlaygroundConfig
     extends Config(
-      (new WithFireSimHarnessClockBridgeInstantiator ++ new TestConfig)
+      (new TestConfig)
         .orElse(new freechips.rocketchip.subsystem.WithInclusiveCache)
         .orElse(new freechips.rocketchip.system.DefaultConfig)
     )
