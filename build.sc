@@ -225,6 +225,7 @@ object playground extends CommonModule {
   )
 
   def module: String = "playground.harness.FireSim"
+  def moduleName: String = module.split('.').last
 
   def configs: String = "playground.harness.FireSimRocket4GiBDRAMConfig"
 
@@ -244,18 +245,22 @@ object playground extends CommonModule {
     PathRef(T.dest)
   }
 
-  def verilog = T {
-    os.proc("firtool",
-      elaborate().path / s"${module.split('.').last}.fir",
-      "--disable-annotation-unknown",
-      "-dedup",
-      "-O=debug",
-      "--split-verilog",
-      "--preserve-values=named",
-      "--output-annotation-file=mfc.anno.json",
-      s"-o=${T.dest}"
-    ).call(T.dest)
+  def goldengate = T {
+    mill.modules.Jvm.runSubprocess(
+      "midas.stage.GoldenGateMain",
+      runClasspath().map(_.path),
+      forkArgs(),
+      forkEnv(),
+      Seq(
+        "-i",  s"${elaborate().path.toString()}/${moduleName}.fir",
+        "-faf", s"${elaborate().path.toString()}/${moduleName}.anno.json",
+        "-ggcp", "firesim.firesim",
+        "-ggcs", "BaseXilinxVCU118Config",
+        "--output-filename-base", s"${moduleName}-generated",
+        "--no-dedup"
+      ),
+      workingDir = os.pwd
+    )
     PathRef(T.dest)
   }
-
 }

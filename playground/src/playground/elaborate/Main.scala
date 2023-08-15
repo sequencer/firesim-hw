@@ -25,23 +25,29 @@ object Main {
       .newInstance(parameters)
       .asInstanceOf[RawModule]
 
-    Seq(
+    val annos = Seq(
       new Elaborate,
       new chisel3.hack.Convert
     ).foldLeft(
       Seq(
         TargetDirAnnotation(dir),
-        ChiselGeneratorAnnotation(() => module)
-      ): AnnotationSeq
-    ) { case (annos, phase) => phase.transform(annos) }
-      .flatMap {
-        case firrtl.stage.FirrtlCircuitAnnotation(circuit) =>
-          os.write(os.Path(dir) / s"${module.name}.fir", circuit.serialize)
-          None
-        case _: chisel3.stage.DesignAnnotation[_] => None
-        case a => Some(a)
-      }
-  }
+    ChiselGeneratorAnnotation (() => module)
+  ): AnnotationSeq
 
-  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
+  )
+  {
+    case (annos, phase) => phase.transform(annos)
+  }
+    .flatMap {
+      case firrtl.stage.FirrtlCircuitAnnotation(circuit) =>
+        os.write(os.Path(dir) / s"${module.name}.fir", circuit.serialize)
+        None
+      case _: chisel3.stage.DesignAnnotation[_] => None
+      case a => Some(a)
+    }
+  os.write(os.Path(dir) / s"${module.name}.anno.json", firrtl.annotations.JsonProtocol.serialize(annos))
+  freechips.rocketchip.util.ElaborationArtefacts.files.foreach { case (ext, contents) => os.write.over(os.Path(dir) / s"${config.mkString}.${ext}", contents()) }
+}
+
+def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
 }
