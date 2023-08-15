@@ -145,21 +145,6 @@ object myhardfloat extends dependencies.`berkeley-hardfloat`.build.hardfloat {
   }
 }
 
-object constellation extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "constellation"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object mempress extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "mempress"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, firesim)
-}
-
-
 
 object testchipip extends CommonModule with SbtModule {
 
@@ -209,12 +194,6 @@ object firesim extends CommonModule with SbtModule { fs =>
   override def moduleDeps = super.moduleDeps ++ Seq(lib, midas)
 }
 
-object boom extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "riscv-boom"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, testchipip)
-}
-
 object barstools extends CommonModule with SbtModule { bt =>
   override def millSourcePath = os.pwd / "dependencies" / "barstools"
 
@@ -233,102 +212,6 @@ object barstools extends CommonModule with SbtModule { bt =>
 
   override def moduleDeps = super.moduleDeps ++ Seq(macros, iocell, tapeout)
 }
-
-object gemmini extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "gemmini"
-
-  override def ivyDeps = Agg(
-    ivys.breeze
-  )
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, testchipip, firesim.lib)
-}
-
-object nvdla extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "nvdla-wrapper"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object cva6 extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "cva6-wrapper"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object hwacha extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "hwacha"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object sodor extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "riscv-sodor"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object sha3 extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "sha3"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, mychiseltest, firesim.midas)
-}
-
-object ibex extends CommonModule with SbtModule {
-
-  override def millSourcePath = os.pwd / "dependencies" / "ibex-wrapper"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object dsptools extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "dsptools"
-
-  override def ivyDeps = Agg(
-    ivys.spire,
-    ivys.breeze
-  )
-}
-
-object dsputils extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "rocket-dsp-utils"
-
-  override def ivyDeps = Agg(
-    ivys.spire,
-    ivys.breeze
-  )
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, dsptools)
-}
-
-object fftgenerator extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "fft-generator"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, dsputils)
-}
-
-object barf extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "bar-fetchers"
-
-  override def ivyDeps = Agg(
-    ivys.spire,
-    ivys.breeze
-  )
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
-object shuttle extends CommonModule with SbtModule {
-  override def millSourcePath = os.pwd / "dependencies" / "shuttle"
-
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
-}
-
 // Dummy
 
 object playground extends CommonModule {
