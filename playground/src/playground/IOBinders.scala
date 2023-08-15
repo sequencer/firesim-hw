@@ -153,26 +153,6 @@ class ComposeLazyIOBinder[T](fn: T => ModuleValue[IOBinderTuple])(implicit tag: 
 
 case object IOCellKey extends Field[IOCellTypeParams](GenericIOCellParams())
 
-
-class WithGPIOCells extends OverrideIOBinder({
-  (system: HasPeripheryGPIOModuleImp) => {
-    val (ports2d, cells2d) = system.gpio.zipWithIndex.map({ case (gpio, i) =>
-      gpio.pins.zipWithIndex.map({ case (pin, j) =>
-        val g = IO(Analog(1.W)).suggestName(s"gpio_${i}_${j}")
-        val iocell = system.p(IOCellKey).gpio().suggestName(s"iocell_gpio_${i}_${j}")
-        iocell.io.o := pin.o.oval
-        iocell.io.oe := pin.o.oe
-        iocell.io.ie := pin.o.ie
-        pin.i.ival := iocell.io.i
-        iocell.io.pad <> g
-        (g, iocell)
-      }).unzip
-    }).unzip
-    val ports: Seq[Analog] = ports2d.flatten
-    (ports, cells2d.flatten)
-  }
-})
-
 // DOC include start: WithUARTIOCells
 class WithUARTIOCells extends OverrideIOBinder({
   (system: HasPeripheryUARTModuleImp) => {
@@ -196,70 +176,6 @@ class WithExtInterruptIOCells extends OverrideIOBinder({
   }
 })
 
-// Rocketchip's JTAGIO exposes the oe signal, which doesn't go off-chip
-class JTAGChipIO extends Bundle {
-  val TCK = Input(Clock())
-  val TMS = Input(Bool())
-  val TDI = Input(Bool())
-  val TDO = Output(Bool())
-}
-
-class WithDebugIOCells extends OverrideLazyIOBinder({
-  (system: HasPeripheryDebug) => {
-    implicit val p = GetSystemParameters(system)
-    val tlbus = system.asInstanceOf[BaseSubsystem].locateTLBusWrapper(p(ExportDebug).slaveWhere)
-    val clockSinkNode = system.debugOpt.map(_ => ClockSinkNode(Seq(ClockSinkParameters())))
-    clockSinkNode.map(_ := tlbus.fixedClockNode)
-    def clockBundle = clockSinkNode.get.in.head._1
-
-
-    InModuleBody { system.asInstanceOf[BaseSubsystem] match { case system: HasPeripheryDebug => {
-      system.debug.map({ debug =>
-        // We never use the PSDIO, so tie it off on-chip
-        system.psd.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode) }
-        system.resetctrl.map { rcio => rcio.hartIsInReset.map { _ := clockBundle.reset.asBool } }
-        system.debug.map { d =>
-          // Tie off extTrigger
-          d.extTrigger.foreach { t =>
-            t.in.req := false.B
-            t.out.ack := t.out.req
-          }
-          // Tie off disableDebug
-          d.disableDebug.foreach { d => d := false.B }
-          // Drive JTAG on-chip IOs
-          d.systemjtag.map { j =>
-            j.reset := ResetCatchAndSync(j.jtag.TCK, clockBundle.reset.asBool)
-            j.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
-            j.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
-            j.version := p(JtagDTMKey).idcodeVersion.U(4.W)
-          }
-        }
-        Debug.connectDebugClockAndReset(Some(debug), clockBundle.clock)
-
-        // Add IOCells for the DMI/JTAG/APB ports
-        val dmiTuple = debug.clockeddmi.map { d =>
-          IOCell.generateIOFromSignal(d, "dmi", p(IOCellKey), abstractResetAsAsync = true)
-        }
-
-        val jtagTuple = debug.systemjtag.map { j =>
-          val jtag_wire = Wire(new JTAGChipIO)
-          j.jtag.TCK := jtag_wire.TCK
-          j.jtag.TMS := jtag_wire.TMS
-          j.jtag.TDI := jtag_wire.TDI
-          jtag_wire.TDO := j.jtag.TDO.data
-          IOCell.generateIOFromSignal(jtag_wire, "jtag", p(IOCellKey), abstractResetAsAsync = true)
-        }
-
-        val apbTuple = debug.apb.map { a =>
-          IOCell.generateIOFromSignal(a, "apb", p(IOCellKey), abstractResetAsAsync = true)
-        }
-
-        val allTuples = (dmiTuple ++ jtagTuple ++ apbTuple).toSeq
-        (allTuples.map(_._1).toSeq, allTuples.flatMap(_._2).toSeq)
-      }).getOrElse((Nil, Nil))
-    }}}
-  }
-})
 
 class WithSerialTLIOCells extends OverrideIOBinder({
   (system: CanHavePeripheryTLSerial) => system.serial_tl.map({ s =>
