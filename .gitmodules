@@ -42,9 +42,6 @@
 [submodule "riscv-boom"]
 	path = dependencies/riscv-boom
 	url = git@github.com:riscv-boom/riscv-boom.git
-[submodule "chipyard"]
-	path = dependencies/chipyard
-	url = git@github.com:ucb-bar/chipyard.git
 [submodule "barstools"]
 	path = dependencies/barstools
 	url = git@github.com:ucb-bar/barstools.git

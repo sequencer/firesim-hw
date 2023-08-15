@@ -349,9 +349,3 @@ class WithNICIOPunchthrough extends OverrideIOBinder({
     (ports, Nil)
   }
 })
-
-class WithDontTouchPorts extends OverrideIOBinder({
-  (system: DontTouch) => system.dontTouchPorts(); (Nil, Nil)
-})
-
-

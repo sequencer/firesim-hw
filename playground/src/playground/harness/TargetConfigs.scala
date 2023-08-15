@@ -100,7 +100,6 @@ class AbstractConfig extends Config(
   // The HarnessBinders control generation of hardware in the TestHarness
   new WithUARTAdapter ++                          // add UART adapter to display UART on stdout, if uart is present
   new WithSimTSIOverSerialTL ++                   // add external serial-adapter and RAM
-  new WithGPIOTiedOff ++                          // tie-off chiptop GPIOs, if GPIOs are present
   new WithSimAXIMMIO ++                           // add SimAXIMem for axi4 mmio port, if enabled
   new WithTieOffInterrupts ++                     // tie-off interrupt ports, if present
   new WithTieOffL2FBusAXI ++                      // tie-off external AXI4 master, if present

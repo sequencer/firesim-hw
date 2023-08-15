@@ -329,28 +329,6 @@ object shuttle extends CommonModule with SbtModule {
   override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
 }
 
-// I know it's quite strange, however UCB messly managed their dependency...
-object chipyard extends CommonModule with SbtModule { cy =>
-  def basePath = os.pwd / "dependencies" / "chipyard"
-  override def millSourcePath = basePath / "generators" / "chipyard"
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, barstools, testchipip, blocks, icenet, boom, gemmini, nvdla, hwacha, cva6, tracegen, sodor, sha3, ibex, constellation, mempress, fftgenerator, barf, shuttle)
-
-  object tracegen extends CommonModule with SbtModule {
-    override def millSourcePath = basePath / "generators" / "tracegen"
-    override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, boom)
-  }
-
-  object utilities extends CommonModule with SbtModule {
-    override def millSourcePath = basePath / "generators" / "utilities"
-    override def moduleDeps = super.moduleDeps ++ Seq(chipyard)
-  }
-
-  object firechip extends CommonModule with SbtModule {
-    override def millSourcePath = basePath / "generators" / "firechip"
-    override def moduleDeps = super.moduleDeps ++ Seq(chipyard)
-  }
-}
-
 // Dummy
 
 object playground extends CommonModule {

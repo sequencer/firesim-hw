@@ -18,16 +18,6 @@ case object HarnessClockInstantiatorKey extends Field[() => HarnessClockInstanti
 case object HarnessBinderClockFrequencyKey extends Field[Double](100.0) // MHz
 case object MultiChipIdx extends Field[Int](0)
 
-class WithMultiChip(id: Int, p: Parameters) extends Config((site, here, up) => {
-  case MultiChipParameters(`id`) => p
-  case MultiChipNChips => Some(up(MultiChipNChips).getOrElse(0) max (id + 1))
-})
-
-class WithHomogeneousMultiChip(n: Int, p: Parameters, idStart: Int = 0) extends Config((site, here, up) => {
-  case MultiChipParameters(id) => if (id >= idStart && id < idStart + n) p else up(MultiChipParameters(id))
-  case MultiChipNChips => Some(up(MultiChipNChips).getOrElse(0) max (idStart + n))
-})
-
 class WithHarnessBinderClockFreqMHz(freqMHz: Double) extends Config((site, here, up) => {
   case HarnessBinderClockFrequencyKey => freqMHz
 })

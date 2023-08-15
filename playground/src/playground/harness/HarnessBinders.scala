@@ -62,13 +62,6 @@ class ComposeHarnessBinder[T, S <: HasHarnessInstantiators, U <: Data](fn: => (T
     fn(t, th, p)
   })
 
-
-class WithGPIOTiedOff extends OverrideHarnessBinder({
-  (system: HasPeripheryGPIOModuleImp, th: HasHarnessInstantiators, ports: Seq[Analog]) => {
-    ports.foreach { _ <> AnalogConst(0) }
-  }
-})
-
 // DOC include start: WithUARTAdapter
 class WithUARTAdapter extends OverrideHarnessBinder({
   (system: HasPeripheryUARTModuleImp, th: HasHarnessInstantiators, ports: Seq[UARTPortIO]) => {
