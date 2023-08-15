@@ -1,6 +1,6 @@
 package playground
 
-import org.chipsalliance.cde.config.{Config, Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem._

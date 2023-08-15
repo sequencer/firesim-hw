@@ -5,17 +5,11 @@ import chisel3.experimental.{Analog, DataMirror, IO}
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.system.SimAXIMem
-import freechips.rocketchip.amba.axi4.{AXI4Bundle, AXI4EdgeParameters, AXI4MasterNode, AXI4SlaveNode}
+import freechips.rocketchip.amba.axi4.{AXI4Bundle}
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci._
-import freechips.rocketchip.groundtest.{GroundTestSubsystem, GroundTestSubsystemModuleImp}
-import freechips.rocketchip.tilelink.TLBundle
-import sifive.blocks.devices.gpio._
 import sifive.blocks.devices.uart._
-import sifive.blocks.devices.spi._
 import barstools.iocell.chisel._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly}
 import testchipip.{BlockDeviceIO, CanHavePeripheryBlockDevice, CanHavePeripheryTLSerial, ClockedAndResetIO, ClockedIO}

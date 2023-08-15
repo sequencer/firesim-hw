@@ -1,15 +1,13 @@
 package playground.harness
 
 import chisel3._
-import chisel3.experimental.{Analog, BaseModule}
+import chisel3.experimental.{BaseModule}
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.amba.axi4.AXI4Bundle
 import freechips.rocketchip.system.SimAXIMem
 import freechips.rocketchip.subsystem._
-import sifive.blocks.devices.gpio._
 import sifive.blocks.devices.uart._
-import barstools.iocell.chisel._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly, NICKey, NicLoopback, SimNetwork}
 import playground.HasChipyardPRCI
 import playground.clocking.ClockWithFreq
@@ -70,45 +68,6 @@ class WithUARTAdapter extends OverrideHarnessBinder({
 })
 // DOC include end: WithUARTAdapter
 
-class WithSimBlockDevice extends OverrideHarnessBinder({
-  (system: CanHavePeripheryBlockDevice, th: HasHarnessInstantiators, ports: Seq[ClockedIO[BlockDeviceIO]]) => {
-    implicit val p: Parameters = GetSystemParameters(system)
-    ports.map { b => SimBlockDevice.connect(b.clock, th.harnessBinderReset.asBool, Some(b.bits)) }
-  }
-})
-
-class WithBlockDeviceModel extends OverrideHarnessBinder({
-  (system: CanHavePeripheryBlockDevice, th: HasHarnessInstantiators, ports: Seq[ClockedIO[BlockDeviceIO]]) => {
-    implicit val p: Parameters = GetSystemParameters(system)
-    ports.map { b => BlockDeviceModel.connect(Some(b.bits)) }
-  }
-})
-
-class WithLoopbackNIC extends OverrideHarnessBinder({
-  (system: CanHavePeripheryIceNIC, th: HasHarnessInstantiators, ports: Seq[ClockedIO[NICIOvonly]]) => {
-    implicit val p: Parameters = GetSystemParameters(system)
-    ports.map { n => NicLoopback.connect(Some(n.bits), p(NICKey)) }
-  }
-})
-
-class WithSimNetwork extends OverrideHarnessBinder({
-  (system: CanHavePeripheryIceNIC, th: BaseModule with HasHarnessInstantiators, ports: Seq[ClockedIO[NICIOvonly]]) => {
-    implicit val p: Parameters = GetSystemParameters(system)
-    ports.map { n => SimNetwork.connect(Some(n.bits), n.clock, th.harnessBinderReset.asBool) }
-  }
-})
-
-class WithSimAXIMem extends OverrideHarnessBinder({
-  (system: CanHaveMasterAXI4MemPort, th: HasHarnessInstantiators, ports: Seq[ClockedAndResetIO[AXI4Bundle]]) => {
-    val p: Parameters = GetSystemParameters(system)
-    (ports zip system.memAXI4Node.edges.in).map { case (port, edge) =>
-      val mem = LazyModule(new SimAXIMem(edge, size=p(ExtMem).get.master.size)(p))
-      Module(mem.module).suggestName("mem")
-      mem.io_axi4.head <> port.bits
-    }
-  }
-})
-
 class WithSimAXIMMIO extends OverrideHarnessBinder({
   (system: CanHaveMasterAXI4MMIOPort, th: HasHarnessInstantiators, ports: Seq[ClockedAndResetIO[AXI4Bundle]]) => {
     val p: Parameters = GetSystemParameters(system)
@@ -168,24 +127,6 @@ class WithSimTSIOverSerialTL extends OverrideHarnessBinder({
   }
 })
 
-class WithUARTSerial extends OverrideHarnessBinder({
-  (system: CanHavePeripheryTLSerial, th: HasHarnessInstantiators, ports: Seq[ClockedIO[SerialIO]]) => {
-    implicit val p = GetSystemParameters(system)
-    ports.map({ port =>
-      val freq = p(PeripheryBusKey).dtsFrequency.get
-      val bits = port.bits
-      port.clock := th.harnessBinderClock
-      val ram = TSIHarness.connectRAM(system.serdesser.get, bits, th.harnessBinderReset)
-      val uart_to_serial = Module(new UARTToSerial(freq, UARTParams(0)))
-      val serial_width_adapter = Module(new SerialWidthAdapter(
-        8, TSI.WIDTH))
-      ram.module.io.tsi.flipConnect(serial_width_adapter.io.wide)
-      UARTAdapter.connect(Seq(uart_to_serial.io.uart), uart_to_serial.div)
-      serial_width_adapter.io.narrow.flipConnect(uart_to_serial.io.serial)
-      th.success := false.B
-    })
-  }
-})
 class WithClockAndResetFromHarness extends OverrideHarnessBinder({
   (system: HasChipyardPRCI, th: HasHarnessInstantiators, ports: Seq[Data]) => {
     implicit val p = GetSystemParameters(system)

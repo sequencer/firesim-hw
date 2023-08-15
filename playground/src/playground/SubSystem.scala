@@ -6,20 +6,15 @@
 package playground
 
 import chisel3._
-import chisel3.internal.sourceinfo.{SourceInfo}
 
-import freechips.rocketchip.prci._
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, ExportDebug, DebugModuleKey}
 import sifive.blocks.devices.uart.{HasPeripheryUART, PeripheryUARTKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util._
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.amba.axi4._
 
 
 import testchipip.{DromajoHelper, CanHavePeripheryTLSerial, SerialTLKey}

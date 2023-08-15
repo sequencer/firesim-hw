@@ -1,11 +1,6 @@
 package playground
 
-import chisel3._
-
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.system._
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.devices.tilelink._
 
 // ------------------------------------
 // BOOM and/or Rocket Top Level Systems

@@ -61,17 +61,11 @@ trait HasHarnessInstantiators {
     require(p(MultiChipNChips).isEmpty || supportsMultiChip,
       s"Selected Harness does not support multi-chip")
 
-    println("Here!!!!")
-
     val lazyDuts = chipParameters.zipWithIndex.map { case (q, i) =>
       LazyModule(q(BuildTop)(q)).suggestName(s"chiptop$i")
     }
 
-    println("Here2!!!!")
-
     val duts = lazyDuts.map(l => Module(l.module))
-
-    println("Here3!!!!")
 
     withClockAndReset (harnessBinderClock, harnessBinderReset) {
       lazyDuts.zipWithIndex.foreach {

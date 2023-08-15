@@ -1,16 +1,14 @@
 package playground.harness
 
-import firesim.configs.{FCFS16GBQuadRank, FRFCFS16GBQuadRank, FRFCFS16GBQuadRankLLC4MB, WithDefaultMemModel}
+import firesim.configs.{WithDefaultMemModel}
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.devices.tilelink.BootROMLocated
-import freechips.rocketchip.subsystem.{WithFrontBusFrequency, WithMemoryBusFrequency, WithPeripheryBusFrequency, WithSystemBusFrequency, WithoutTLMonitors}
-import freechips.rocketchip.tile.XLen
+import freechips.rocketchip.subsystem.{WithMemoryBusFrequency, WithPeripheryBusFrequency, WithSystemBusFrequency, WithoutTLMonitors}
 import org.chipsalliance.cde.config.Config
 import playground.ChipyardPRCIControlKey
 import playground.clocking.{WithClockGroupsCombinedByName, WithPassthroughClockGenerator}
 import playground.config.{WithInheritBusFrequencyAssignments, WithNoDebug, WithNoSubsystemDrivenClocks, WithTraceIO, WithUART}
 import playground.iobinders._
-import testchipip.TracePortKey
 
 import java.io.File
 

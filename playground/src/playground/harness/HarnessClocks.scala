@@ -5,10 +5,8 @@ package playground.harness
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.DoubleParam
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap}
-import freechips.rocketchip.diplomacy.{LazyModule}
-import org.chipsalliance.cde.config.{Field, Parameters, Config}
-import freechips.rocketchip.util.{ResetCatchAndSync}
+import scala.collection.mutable.{LinkedHashMap}
+import org.chipsalliance.cde.config.{Config}
 import freechips.rocketchip.prci._
 
 

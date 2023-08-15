@@ -4,7 +4,6 @@ import chisel3._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
-import barstools.iocell.chisel._
 import playground.HasChipyardPRCI
 import playground.iobinders.{GetSystemParameters, OverrideLazyIOBinder}
 
