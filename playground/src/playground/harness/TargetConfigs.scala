@@ -25,7 +25,6 @@ class WithBootROM extends Config((site, here, up) => {
 // Disables clock-gating; doesn't play nice with our FAME-1 pass
 class WithoutClockGating extends Config((site, here, up) => {
   case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(clockGate = false))
-  case ChipyardPRCIControlKey => up(ChipyardPRCIControlKey, site).copy(enableTileClockGating = false)
 })
 
 // Use the firesim clock bridge instantiator. this is required
@@ -114,9 +113,7 @@ class AbstractConfig extends Config(
   new WithBlockDeviceIOPunchthrough ++
   new WithNICIOPunchthrough ++
   new WithSerialTLIOCells ++
-  new WithDebugIOCells ++
   new WithUARTIOCells ++
-  new WithGPIOCells ++
   new WithExtInterruptIOCells ++
 
   // By default, punch out IOs to the Harness

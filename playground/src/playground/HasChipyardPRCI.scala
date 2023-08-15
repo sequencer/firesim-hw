@@ -5,13 +5,12 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.prci._
-import playground.clocking.{ClockFrequencyAssignersKey, ClockGroupCombiner, ClockGroupFrequencySpecifier, ClockGroupNamePrefixer, TileClockGater, TileResetSetter}
+import playground.clocking.{ClockFrequencyAssignersKey, ClockGroupCombiner, ClockGroupFrequencySpecifier, ClockGroupNamePrefixer, TileResetSetter}
 import testchipip.TLTileResetCtrl
 
 case class ChipyardPRCIControlParams(
                                       slaveWhere: TLBusWrapperLocation = CBUS,
                                       baseAddress: BigInt = 0x100000,
-                                      enableTileClockGating: Boolean = true,
                                       enableTileResetSetting: Boolean = true
                                     )
 
@@ -72,11 +71,6 @@ trait HasChipyardPRCI { this: BaseSubsystem with InstantiatesTiles =>
   val frequencySpecifier = ClockGroupFrequencySpecifier(p(ClockFrequencyAssignersKey))
   val clockGroupCombiner = ClockGroupCombiner()
   val resetSynchronizer  = prci_ctrl_domain { ClockGroupResetSynchronizer() }
-  val tileClockGater     = Option.when(prciParams.enableTileClockGating) { prci_ctrl_domain {
-    val clock_gater = LazyModule(new TileClockGater(prciParams.baseAddress + 0x00000, tlbus.beatBytes))
-    clock_gater.tlNode := prci_ctrl_bus
-    clock_gater
-  } }
   val tileResetSetter    = Option.when(prciParams.enableTileResetSetting) { prci_ctrl_domain {
     val reset_setter = LazyModule(new TileResetSetter(prciParams.baseAddress + 0x10000, tlbus.beatBytes,
       tile_prci_domains.map(_.tile_reset_domain.clockNode.portParams(0).name.get), Nil))
@@ -88,7 +82,6 @@ trait HasChipyardPRCI { this: BaseSubsystem with InstantiatesTiles =>
     := frequencySpecifier
     := clockGroupCombiner
     := resetSynchronizer
-    := tileClockGater.map(_.clockNode).getOrElse(ClockGroupEphemeralNode()(ValName("temp")))
     := tileResetSetter.map(_.clockNode).getOrElse(ClockGroupEphemeralNode()(ValName("temp")))
     := allClockGroupsNode)
 }
