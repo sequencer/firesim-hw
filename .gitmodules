@@ -50,3 +50,6 @@
 [submodule "dependencies/fft-generator"]
 	path = dependencies/fft-generator
 	url = git@github.com:ucb-bar/FFTGenerator.git
+[submodule "dependencies/constellation"]
+	path = dependencies/constellation
+	url = git@github.com:ucb-bar/constellation.git

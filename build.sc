@@ -145,6 +145,12 @@ object myhardfloat extends dependencies.`berkeley-hardfloat`.build.hardfloat {
   }
 }
 
+object constellation extends CommonModule with SbtModule {
+
+  override def millSourcePath = os.pwd / "dependencies" / "constellation"
+
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip)
+}
 
 object testchipip extends CommonModule with SbtModule {
 
@@ -215,7 +221,7 @@ object barstools extends CommonModule with SbtModule { bt =>
 // Dummy
 
 object playground extends CommonModule {
-  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, barstools, icenet, firesim)
+  override def moduleDeps = super.moduleDeps ++ Seq(myrocketchip, inclusivecache, blocks, barstools, icenet, firesim, constellation)
 
   // add some scala ivy module you like here.
   override def ivyDeps = Agg(
