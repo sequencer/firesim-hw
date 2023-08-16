@@ -6,13 +6,13 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.amba.axi4.{AXI4Bundle}
+import freechips.rocketchip.amba.axi4.AXI4Bundle
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci._
 import sifive.blocks.devices.uart._
 import barstools.iocell.chisel._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly}
-import testchipip.{BlockDeviceIO, CanHavePeripheryBlockDevice, CanHavePeripheryTLSerial, ClockedAndResetIO, ClockedIO}
+import testchipip.{BlockDeviceIO, CanHavePeripheryBlockDevice, CanHavePeripheryCustomBootPin, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, TraceOutputTop}
 
 import scala.reflect.ClassTag
 
@@ -258,4 +258,23 @@ class WithNICIOPunchthrough extends OverrideIOBinder({
     }).toSeq
     (ports, Nil)
   }
+})
+
+class WithTraceIOPunchthrough extends OverrideIOBinder({
+  (system: CanHaveTraceIOModuleImp) => {
+    val ports: Option[TraceOutputTop] = system.traceIO.map { t =>
+      val trace = IO(DataMirror.internal.chiselTypeClone[TraceOutputTop](t)).suggestName("trace")
+      trace <> t
+      trace
+    }
+    (ports.toSeq, Nil)
+  }
+})
+
+class WithCustomBootPin extends OverrideIOBinder({
+  (system: CanHavePeripheryCustomBootPin) => system.custom_boot_pin.map({ p =>
+    val sys = system.asInstanceOf[BaseSubsystem]
+    val (port, cells) = IOCell.generateIOFromSignal(p.getWrappedValue, "custom_boot", sys.p(IOCellKey), abstractResetAsAsync = true)
+    (Seq(port), cells)
+  }).getOrElse((Nil, Nil))
 })

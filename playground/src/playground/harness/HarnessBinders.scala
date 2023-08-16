@@ -1,18 +1,20 @@
 package playground.harness
 
 import chisel3._
-import chisel3.experimental.{BaseModule}
+import chisel3.experimental.BaseModule
+import chisel3.reflect.DataMirror
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.amba.axi4.AXI4Bundle
 import freechips.rocketchip.system.SimAXIMem
 import freechips.rocketchip.subsystem._
+import freechips.rocketchip.util.PlusArg
 import sifive.blocks.devices.uart._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly, NICKey, NicLoopback, SimNetwork}
 import playground.HasChipyardPRCI
 import playground.clocking.ClockWithFreq
-import playground.iobinders.GetSystemParameters
-import testchipip.{BlockDeviceIO, BlockDeviceModel, CanHavePeripheryBlockDevice, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, SerialIO, SerialTLKey, SerialWidthAdapter, SimBlockDevice, SimDromajoBridge, SimSPIFlashModel, SimTSI, TSI, TSIHarness, TraceOutputTop, UARTAdapter, UARTToSerial}
+import playground.iobinders.{GetSystemParameters, OverrideIOBinder}
+import testchipip.{BlockDeviceIO, BlockDeviceModel, CanHavePeripheryBlockDevice, CanHavePeripheryCustomBootPin, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, SerialIO, SerialTLKey, SerialWidthAdapter, SimBlockDevice, SimDromajoBridge, SimSPIFlashModel, SimTSI, TSI, TSIHarness, TraceOutputTop, UARTAdapter, UARTToSerial}
 
 import scala.reflect.ClassTag
 
@@ -124,6 +126,24 @@ class WithSimTSIOverSerialTL extends OverrideHarnessBinder({
       val success = SimTSI.connect(Some(ram.module.io.tsi), th.harnessBinderClock, th.harnessBinderReset.asBool)
       when (success) { th.success := true.B }
     })
+  }
+})
+
+class WithTraceIOPunchthrough extends OverrideIOBinder({
+  (system: CanHaveTraceIOModuleImp) => {
+    val ports: Option[TraceOutputTop] = system.traceIO.map { t =>
+      val trace = IO(DataMirror.internal.chiselTypeClone[TraceOutputTop](t)).suggestName("trace")
+      trace <> t
+      trace
+    }
+    (ports.toSeq, Nil)
+  }
+})
+
+class WithCustomBootPinPlusArg extends OverrideHarnessBinder({
+  (system: CanHavePeripheryCustomBootPin, th: HasHarnessInstantiators, ports: Seq[Bool]) => {
+    val pin = PlusArg("custom_boot_pin", width=1)
+    ports.foreach(_ := pin)
   }
 })
 

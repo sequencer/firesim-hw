@@ -100,6 +100,7 @@ class AbstractConfig extends Config(
   new WithSimAXIMMIO ++                           // add SimAXIMem for axi4 mmio port, if enabled
   new WithTieOffInterrupts ++                     // tie-off interrupt ports, if present
   new WithTieOffL2FBusAXI ++                      // tie-off external AXI4 master, if present
+  new WithCustomBootPinPlusArg ++                 // drive custom-boot pin with a plusarg, if custom-boot-pin is present
   new WithClockAndResetFromHarness ++             // all Clock/Reset I/O in ChipTop should be driven by harnessClockInstantiator
   new WithAbsoluteFreqHarnessClockInstantiator ++ // generate clocks in harness with unsynthesizable ClockSourceAtFreqMHz
 
@@ -112,7 +113,9 @@ class AbstractConfig extends Config(
   new WithNICIOPunchthrough ++
   new WithSerialTLIOCells ++
   new WithUARTIOCells ++
+  new WithTraceIOPunchthrough ++
   new WithExtInterruptIOCells ++
+  new WithCustomBootPin ++
 
   // By default, punch out IOs to the Harness
   new WithPassthroughClockGenerator ++
@@ -125,7 +128,6 @@ class AbstractConfig extends Config(
   new testchipip.WithSerialTLClientIdBits(4) ++                     // support up to 1 << 4 simultaneous requests from serialTL port
   new testchipip.WithSerialTLWidth(32) ++                           // fatten the serialTL interface to improve testing performance
   new testchipip.WithDefaultSerialTL ++                             // use serialized tilelink port to external serialadapter/harnessRAM
-  new WithBootROM ++                                // use default bootrom
   new WithUART ++                                   // add a UART
   new WithNoSubsystemDrivenClocks ++                // drive the subsystem diplomatic clocks from ChipTop instead of using implicit clocks
   new WithInheritBusFrequencyAssignments ++         // Unspecified clocks within a bus will receive the bus frequency if set

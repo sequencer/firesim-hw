@@ -8,6 +8,7 @@ import org.chipsalliance.cde.config.Parameters
 
 // DOC include start: DigitalTop
 class DigitalTop(implicit p: Parameters) extends ChipyardSystem
+  with testchipip.CanHavePeripheryCustomBootPin // Enables optional custom boot pin
   with testchipip.CanHaveTraceIO // Enables optionally adding trace IO
   with testchipip.CanHavePeripheryBootAddrReg // Use programmable boot address register
   with testchipip.CanHavePeripheryBlockDevice // Enables optionally adding the block device
@@ -15,6 +16,7 @@ class DigitalTop(implicit p: Parameters) extends ChipyardSystem
   with sifive.blocks.devices.uart.HasPeripheryUART // Enables optionally adding the sifive UART
   with icenet.CanHavePeripheryIceNIC // Enables optionally adding the IceNIC for FireSim
   with HasChipyardPRCI // Use Chipyard reset/clock distribution
+  with constellation.soc.CanHaveGlobalNoC // Support instantiating a global NoC interconnect
 {
   override lazy val module = new DigitalTopModule(this)
 }
