@@ -85,7 +85,6 @@ chisel https://github.com/chipsalliance/chisel/pull/3371.diff
 firesim https://github.com/firesim/firesim/pull/1250.diff  
 firesim https://github.com/firesim/firesim/pull/1349.diff  
 firesim https://github.com/firesim/firesim/pull/1594.diff  
-fft-generator https://github.com/ucb-bar/FFTGenerator/pull/6.diff  
 <!-- END-PATCH -->
 
 ## Why not Chipyard
