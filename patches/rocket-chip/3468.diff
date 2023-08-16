@@ -1,0 +1,10 @@
+diff --git a/src/main/resources/META-INF/services/firrtl.options.RegisteredLibrary b/src/main/resources/META-INF/services/firrtl.options.RegisteredLibrary
+index 2dc70d3bf74..abfcceb0559 100644
+--- a/src/main/resources/META-INF/services/firrtl.options.RegisteredLibrary
++++ b/src/main/resources/META-INF/services/firrtl.options.RegisteredLibrary
+@@ -1,5 +1 @@
+ firrtl.passes.memlib.MemLibOptions
+-freechips.rocketchip.linting.LintReporter
+-freechips.rocketchip.linting.rule.LintAnonymousRegisters
+-freechips.rocketchip.linting.rule.LintTruncatingWidths
+-freechips.rocketchip.linting.rule.LintConflictingModuleNames

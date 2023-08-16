@@ -78,6 +78,7 @@ then open by your favorite IDE, which supports [BSP](https://build-server-protoc
 Philosophy of this repository is **fast break and fast fix**.
 This repository always tracks remote developing branches, it may need some patches to work, `make patch` will append below in sequence:
 <!-- BEGIN-PATCH -->
+rocket-chip https://github.com/chipsalliance/rocket-chip/pull/3468.diff  
 barstools https://github.com/ucb-bar/barstools/pull/124.diff  
 barstools https://github.com/ucb-bar/barstools/pull/132.diff  
 chisel https://github.com/chipsalliance/chisel/pull/3371.diff  

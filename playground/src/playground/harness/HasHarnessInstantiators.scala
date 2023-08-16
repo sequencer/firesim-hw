@@ -4,7 +4,6 @@ import chisel3._
 import freechips.rocketchip.diplomacy.LazyModule
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
 import freechips.rocketchip.util.ResetCatchAndSync
-import freechips.rocketchip.stage.phases.TargetDirKey
 import playground.ChipTop
 import playground.iobinders.HasIOBinders
 
@@ -50,7 +49,6 @@ trait HasHarnessInstantiators {
 
   private val chipParameters = p(MultiChipNChips) match {
     case Some(n) => (0 until n).map { i => p(MultiChipParameters(i)).alterPartial {
-      case TargetDirKey => p(TargetDirKey) // hacky fix
       case MultiChipIdx => i
     }}
     case None => Seq(p)
