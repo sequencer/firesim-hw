@@ -29,6 +29,6 @@ clean:
 out/playground/elaborate.dest/FireSim.fir:
 	mill -i -j 0 playground.elaborate
 
-out/playground/elaborate.dest/FireSim-generated.sv: rtl/firesim.fir
+out/playground/elaborate.dest/FireSim-generated.sv: out/playground/elaborate.dest/FireSim.fir
 	mill -i -j 0 playground.goldengate
 	grep -sh ^ out/playground/elaborate.dest/firrtl_black_box_resource_files.f | xargs cat >> $@
