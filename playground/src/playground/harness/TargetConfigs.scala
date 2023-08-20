@@ -14,7 +14,7 @@ import java.io.File
 
 class WithBootROM extends Config((site, here, up) => {
   case BootROMLocated(x) => {
-    val bootROMPath = new File(s"./dependencies/rocket-chip/bootrom/bootrom.img").getAbsolutePath
+    val bootROMPath = new File(s"./dependencies/testchipip/bootrom/bootrom.rv64.img").getAbsolutePath
 
     up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMPath))
   }
