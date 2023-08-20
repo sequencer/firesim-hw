@@ -1,8 +1,9 @@
-package playground.config
+package chipyard.config
+
+import chipyard.clocking.ClockFrequencyAssignersKey
 import freechips.rocketchip.subsystem.{ControlBusKey, FrontBusKey, MemoryBusKey, PeripheryBusKey, SubsystemDriveAsyncClockGroupsKey, SystemBusKey}
 import freechips.rocketchip.tilelink.HasTLBusParams
 import org.chipsalliance.cde.config.{Config, Field}
-import playground.clocking.ClockFrequencyAssignersKey
 
 import scala.util.matching.Regex
 

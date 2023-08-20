@@ -1,11 +1,10 @@
-package playground.harness
+package chipyard.harness
 
+import chipyard.{ChipTop, HasIOBinders}
 import chisel3._
 import freechips.rocketchip.diplomacy.LazyModule
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
 import freechips.rocketchip.util.ResetCatchAndSync
-import playground.ChipTop
-import playground.iobinders.HasIOBinders
 
 // -------------------------------
 // Chipyard Test Harness

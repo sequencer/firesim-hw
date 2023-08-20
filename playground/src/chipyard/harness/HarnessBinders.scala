@@ -1,5 +1,7 @@
-package playground.harness
+package chipyard.harness
 
+import chipyard.{GetSystemParameters, HasChipyardPRCI, OverrideIOBinder}
+import chipyard.clocking.ClockWithFreq
 import chisel3._
 import chisel3.experimental.BaseModule
 import chisel3.reflect.DataMirror
@@ -11,9 +13,6 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.util.PlusArg
 import sifive.blocks.devices.uart._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly, NICKey, NicLoopback, SimNetwork}
-import playground.HasChipyardPRCI
-import playground.clocking.ClockWithFreq
-import playground.iobinders.{GetSystemParameters, OverrideIOBinder}
 import testchipip.{BlockDeviceIO, BlockDeviceModel, CanHavePeripheryBlockDevice, CanHavePeripheryCustomBootPin, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, SerialIO, SerialTLKey, SerialWidthAdapter, SimBlockDevice, SimDromajoBridge, SimSPIFlashModel, SimTSI, TSI, TSIHarness, TraceOutputTop, UARTAdapter, UARTToSerial}
 
 import scala.reflect.ClassTag

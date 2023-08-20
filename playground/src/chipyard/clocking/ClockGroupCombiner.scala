@@ -1,4 +1,4 @@
-package playground.clocking
+package chipyard.clocking
 
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._

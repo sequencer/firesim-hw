@@ -1,8 +1,9 @@
 //See LICENSE for license details.
 
-package playground.harness
+package chipyard.harness
 
 import barstools.iocell.chisel._
+import chipyard.{ComposeIOBinder, GetSystemParameters, IOCellKey}
 import chisel3._
 import chisel3.experimental.annotate
 import chisel3.util.experimental.BoringUtils
@@ -16,7 +17,6 @@ import junctions.NastiParameters
 import midas.models.{AXI4EdgeSummary, CompleteConfig, FASEDBridge}
 import midas.targetutils.{EnableModelMultiThreadingAnnotation, MemModelAnnotation}
 import org.chipsalliance.cde.config.{Config, Parameters}
-import playground.iobinders.{ComposeIOBinder, GetSystemParameters, IOCellKey}
 import sifive.blocks.devices.uart._
 import testchipip._
 

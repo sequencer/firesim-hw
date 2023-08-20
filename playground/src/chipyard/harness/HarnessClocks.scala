@@ -1,6 +1,6 @@
 // copied from chipyard.harness
 
-package playground.harness
+package chipyard.harness
 
 import chisel3._
 import chisel3.util._

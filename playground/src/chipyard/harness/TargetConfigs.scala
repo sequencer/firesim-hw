@@ -1,14 +1,13 @@
-package playground.harness
+package chipyard.harness
 
-import firesim.configs.{WithDefaultMemModel}
+import chipyard.{ChipyardPRCIControlKey, WithAXI4MMIOPunchthrough, WithAXI4MemPunchthrough, WithBlockDeviceIOPunchthrough, WithCustomBootPin, WithExtInterruptIOCells, WithL2FBusAXI4Punchthrough, WithNICIOPunchthrough, WithSerialTLIOCells, WithTraceIOPunchthrough, WithUARTIOCells}
+import chipyard.clocking.{WithClockGroupsCombinedByName, WithPassthroughClockGenerator}
+import chipyard.config.{WithInheritBusFrequencyAssignments, WithNoDebug, WithNoSubsystemDrivenClocks, WithTraceIO, WithUART}
+import firesim.configs.WithDefaultMemModel
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.devices.tilelink.BootROMLocated
 import freechips.rocketchip.subsystem.{WithMemoryBusFrequency, WithPeripheryBusFrequency, WithSystemBusFrequency, WithoutTLMonitors}
 import org.chipsalliance.cde.config.Config
-import playground.ChipyardPRCIControlKey
-import playground.clocking.{WithClockGroupsCombinedByName, WithPassthroughClockGenerator}
-import playground.config.{WithInheritBusFrequencyAssignments, WithNoDebug, WithNoSubsystemDrivenClocks, WithTraceIO, WithUART}
-import playground.iobinders._
 
 import java.io.File
 

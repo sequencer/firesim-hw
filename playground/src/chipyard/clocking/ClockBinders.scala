@@ -1,11 +1,10 @@
-package playground.clocking
+package chipyard.clocking
 
+import chipyard.{GetSystemParameters, HasChipyardPRCI, OverrideLazyIOBinder}
 import chisel3._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
-import playground.HasChipyardPRCI
-import playground.iobinders.{GetSystemParameters, OverrideLazyIOBinder}
 
 class ClockWithFreq(val freqMHz: Double) extends Bundle {
   val clock = Clock()

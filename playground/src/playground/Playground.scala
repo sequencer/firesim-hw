@@ -1,8 +1,6 @@
 package playground
 
-import firesim.configs.WithDefaultMemModel
 import org.chipsalliance.cde.config.Config
-import playground.harness.{WithDefaultFireSimBridges, WithFireSimHarnessClockBridgeInstantiator}
 
 class TestConfig
     extends Config((site, here, up) => {

@@ -1,8 +1,7 @@
-package playground
+package chipyard
 
-import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy.{BindingScope, LazyModule, LazyModuleImpLike, LazyRawModuleImp}
-import playground.iobinders.HasIOBinders
+import org.chipsalliance.cde.config.{Field, Parameters}
 
 case object BuildSystem extends Field[Parameters => LazyModule]((p: Parameters) => new DigitalTop()(p))
 

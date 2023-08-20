@@ -1,4 +1,4 @@
-package playground.config
+package chipyard.config
 
 import freechips.rocketchip.subsystem.{InSubsystem, TilesLocated}
 import org.chipsalliance.cde.config.Config

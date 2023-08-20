@@ -1,5 +1,4 @@
-package playground.config
-
+package chipyard.config
 
 import org.chipsalliance.cde.config.{Config}
 import freechips.rocketchip.devices.debug.{DebugModuleKey}

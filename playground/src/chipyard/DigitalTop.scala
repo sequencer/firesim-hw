@@ -1,4 +1,4 @@
-package playground
+package chipyard
 
 import org.chipsalliance.cde.config.Parameters
 

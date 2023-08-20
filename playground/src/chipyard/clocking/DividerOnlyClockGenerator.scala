@@ -1,4 +1,4 @@
-package playground.clocking
+package chipyard.clocking
 
 import freechips.rocketchip.prci._
 import freechips.rocketchip.util.ElaborationArtefacts

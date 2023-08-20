@@ -1,7 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-package playground.harness
+package chipyard.harness
 
+import chipyard.clocking.SimplePllConfiguration
 import chisel3._
 import freechips.rocketchip.devices.debug.Debug
 import freechips.rocketchip.diplomacy.LazyModule
@@ -12,7 +13,6 @@ import midas.widgets.{PeekPokeBridge, RationalClock, RationalClockBridge, ResetP
 import org.chipsalliance.cde.config.Parameters
 
 import scala.collection.mutable.LinkedHashMap
-import playground.clocking.SimplePllConfiguration
 
 class FireSimClockBridgeInstantiator extends HarnessClockInstantiator {
   // connect all clock wires specified to the RationalClockBridge

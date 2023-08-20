@@ -1,18 +1,16 @@
-package playground.iobinders
+package chipyard
 
-import chisel3._
-import chisel3.experimental.{Analog, DataMirror, IO}
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.amba.axi4.AXI4Bundle
-import freechips.rocketchip.util._
-import freechips.rocketchip.prci._
-import sifive.blocks.devices.uart._
 import barstools.iocell.chisel._
+import chisel3._
+import chisel3.experimental.{DataMirror, IO}
+import freechips.rocketchip.amba.axi4.AXI4Bundle
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.prci._
+import freechips.rocketchip.subsystem._
 import icenet.{CanHavePeripheryIceNIC, NICIOvonly}
-import testchipip.{BlockDeviceIO, CanHavePeripheryBlockDevice, CanHavePeripheryCustomBootPin, CanHavePeripheryTLSerial, CanHaveTraceIOModuleImp, ClockedAndResetIO, ClockedIO, TraceOutputTop}
+import org.chipsalliance.cde.config._
+import sifive.blocks.devices.uart._
+import testchipip._
 
 import scala.reflect.ClassTag
 
@@ -20,7 +18,7 @@ object IOBinderTypes {
   type IOBinderTuple = (Seq[Data], Seq[IOCell])
   type IOBinderFunction = (Boolean, => Any) => ModuleValue[IOBinderTuple]
 }
-import IOBinderTypes._
+import chipyard.IOBinderTypes._
 
 // System for instantiating binders based
 // on the scala type of the Target (_not_ its IO). This avoids needing to

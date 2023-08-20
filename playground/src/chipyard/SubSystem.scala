@@ -3,21 +3,18 @@
 // All Rights Reserved. See LICENSE and LICENSE.SiFive for license details.
 //------------------------------------------------------------------------------
 
-package playground
+package chipyard
 
 import chisel3._
-
-import org.chipsalliance.cde.config.{Field, Parameters}
+import freechips.rocketchip.devices.debug.{DebugModuleKey, ExportDebug, HasPeripheryDebug}
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.devices.debug.{HasPeripheryDebug, ExportDebug, DebugModuleKey}
-import sifive.blocks.devices.uart.{HasPeripheryUART, PeripheryUARTKey}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.subsystem._
-
-
-import testchipip.{DromajoHelper, CanHavePeripheryTLSerial, SerialTLKey}
+import freechips.rocketchip.tile._
+import org.chipsalliance.cde.config.{Field, Parameters}
+import sifive.blocks.devices.uart.{HasPeripheryUART, PeripheryUARTKey}
+import testchipip.{CanHavePeripheryTLSerial, DromajoHelper, SerialTLKey}
 
 trait CanHaveHTIF { this: BaseSubsystem =>
   // Advertise HTIF if system can communicate with fesvr

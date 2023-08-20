@@ -3,16 +3,15 @@
 // All Rights Reserved. See LICENSE and LICENSE.SiFive for license details.
 //------------------------------------------------------------------------------
 
-package playground
+package chipyard
 
 import chisel3._
-
-import org.chipsalliance.cde.config.{Parameters, Field}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{DontTouch}
+import freechips.rocketchip.subsystem._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util.DontTouch
+import org.chipsalliance.cde.config.{Field, Parameters}
 
 // ---------------------------------------------------------------------
 // Base system that uses the debug test module (dtm) to bringup the core

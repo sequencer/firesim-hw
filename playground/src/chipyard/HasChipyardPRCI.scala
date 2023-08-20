@@ -1,12 +1,11 @@
-package playground
+package chipyard
 
-import org.chipsalliance.cde.config.{Field, Parameters}
+import chipyard.clocking._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.prci._
-import playground.clocking.{ClockFrequencyAssignersKey, ClockGroupCombiner, ClockGroupFrequencySpecifier, ClockGroupNamePrefixer, TileResetSetter}
-import testchipip.TLTileResetCtrl
+import freechips.rocketchip.subsystem._
+import freechips.rocketchip.tilelink._
+import org.chipsalliance.cde.config.Field
 
 case class ChipyardPRCIControlParams(
                                       slaveWhere: TLBusWrapperLocation = CBUS,
