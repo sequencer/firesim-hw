@@ -230,10 +230,10 @@ object playground extends CommonModule {
     ivys.mainargs
   )
 
-  def module: String = "playground.harness.FireSim"
+  def module: String = "chipyard.harness.FireSim"
   def moduleName: String = module.split('.').last
 
-  def configs: String = "playground.harness.FireSimRocket4GiBDRAMConfig"
+  def configs: String = "chipyard.harness.FireSimRocket4GiBDRAMConfig"
 
   def elaborate = T {
     mill.modules.Jvm.runSubprocess(
